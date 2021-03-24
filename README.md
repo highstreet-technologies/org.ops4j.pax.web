@@ -59,3 +59,8 @@ Go to oss.sonatype.org and push pax-web to central.
 If you want more information about releasing, please take a look on:
 
 http://team.ops4j.org/wiki/display/ops4j/Releasing
+
+
+## build patch
+
+mvn clean install -Pjetty -DskipTests

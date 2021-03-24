@@ -37,7 +37,7 @@
 	<properties>
 		<bundle.symbolicName>org.ops4j.pax.web.pax-web-jetty</bundle.symbolicName>
 		<bundle.namespace>org.ops4j.pax.web.service.jetty</bundle.namespace>
-		<sonar.jacoco.itReportPath>${project.basedir}/../target/jacoco-it.exec</sonar.jacoco.itReportPath>
+		<sonar.jacoco.itReportPath>${project.basedir}/../target/jacoco-it.exec</sonar.jacoco.itReportPath>      
 	</properties>
 
 	<build>
@@ -160,6 +160,25 @@
 				<artifactId>jacoco-maven-plugin</artifactId>
 
 			</plugin>
+            <plugin>
+                <artifactId>maven-checkstyle-plugin</artifactId>
+                <configuration>
+                    <skip>true</skip>
+                    <failOnViolation>false</failOnViolation>
+                </configuration>
+                <executions>
+                  <execution>
+                    <id>verify-style</id>
+                    <phase>verify</phase>
+                    <goals>
+                      <goal>check</goal>
+                    </goals>
+                    <configuration>
+                      <failOnViolation>false</failOnViolation>
+                    </configuration>
+                  </execution>
+                </executions>
+            </plugin>
 		</plugins>
 	</build>
 

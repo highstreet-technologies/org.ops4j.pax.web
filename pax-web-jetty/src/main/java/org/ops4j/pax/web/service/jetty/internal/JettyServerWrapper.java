@@ -28,9 +28,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-
 import javax.servlet.ServletContainerInitializer;
-
 import org.eclipse.jetty.security.Authenticator;
 import org.eclipse.jetty.security.SecurityHandler;
 import org.eclipse.jetty.security.authentication.BasicAuthenticator;
@@ -39,7 +37,6 @@ import org.eclipse.jetty.security.authentication.DigestAuthenticator;
 import org.eclipse.jetty.security.authentication.FormAuthenticator;
 import org.eclipse.jetty.security.authentication.SpnegoAuthenticator;
 import org.eclipse.jetty.server.Handler;
-import org.eclipse.jetty.server.HandlerContainer;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.handler.HandlerCollection;
 import org.eclipse.jetty.server.session.DefaultSessionIdManager;
@@ -588,13 +585,17 @@ class JettyServerWrapper extends Server {
 				sessionHandler.setMaxInactiveInterval(minutes * 60);
 				LOG.debug("Session timeout set to {} minutes for context [{]]", minutes, context);
 			}
-			if (cookie != null && !"none".equals(cookie)) {
+			if ("none".equals(cookie)) {
+                sessionHandler.setUsingCookies(false);
+                LOG.debug("Session cookies disabled for context [" + context + "]");
+            }else if (cookie != null && !"none".equals(cookie)) {
 				sessionHandler.getSessionCookieConfig().setName(cookie);
 				LOG.debug("Session cookie set to {} for context [{}]", cookie, context);
 
 				sessionHandler.getSessionCookieConfig().setHttpOnly(cookieHttpOnly);
 				LOG.debug("Session cookieHttpOnly set to {} for context [{}]",  cookieHttpOnly, context);
 			}
+
 			if (domain != null && domain.length() > 0) {
 				sessionHandler.getSessionCookieConfig().setDomain(domain);
 				LOG.debug("Session cookie domain set to {} for context [{}]", domain, context);
