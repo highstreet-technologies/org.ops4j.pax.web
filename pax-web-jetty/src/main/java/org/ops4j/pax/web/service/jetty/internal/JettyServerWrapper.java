@@ -28,9 +28,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-
 import javax.servlet.ServletContainerInitializer;
-
 import org.eclipse.jetty.security.Authenticator;
 import org.eclipse.jetty.security.SecurityHandler;
 import org.eclipse.jetty.security.authentication.BasicAuthenticator;
@@ -593,6 +591,10 @@ class JettyServerWrapper extends Server {
 
 				sessionHandler.getSessionCookieConfig().setHttpOnly(cookieHttpOnly);
 				LOG.debug("Session cookieHttpOnly set to {} for context [{}]",  cookieHttpOnly, context);
+			}
+			else if (cookie != null && "none".equals(cookie)) {
+	                sessionHandler.setUsingCookies( false );
+	                LOG.debug( "Session cookies disabled for context [" + context + "]" );
 			}
 			if (domain != null && domain.length() > 0) {
 				sessionHandler.getSessionCookieConfig().setDomain(domain);
