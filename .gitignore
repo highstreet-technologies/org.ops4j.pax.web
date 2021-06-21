@@ -11,3 +11,5 @@ bin
 *~
 */.DS_Store
 /.DS_Store
+*.asc
+deploy.sh
