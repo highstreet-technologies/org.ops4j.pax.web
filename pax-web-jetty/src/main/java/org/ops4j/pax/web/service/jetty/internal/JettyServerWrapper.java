@@ -596,7 +596,7 @@ class JettyServerWrapper extends Server {
 			}
             else if (cookie != null && "none".equals(cookie)) {
 	            sessionHandler.setUsingCookies( false );
-	            LOG.debug( "Session cookies disabled for context [" + context + "]" );
+	            LOG.debug( "Session cookies disabled for context [{}]", context );
 			}
 			if (domain != null && domain.length() > 0) {
 				sessionHandler.getSessionCookieConfig().setDomain(domain);
