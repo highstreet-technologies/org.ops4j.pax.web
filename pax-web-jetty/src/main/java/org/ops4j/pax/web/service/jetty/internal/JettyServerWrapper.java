@@ -594,10 +594,10 @@ class JettyServerWrapper extends Server {
 				sessionHandler.getSessionCookieConfig().setHttpOnly(cookieHttpOnly);
 				LOG.debug("Session cookieHttpOnly set to {} for context [{}]",  cookieHttpOnly, context);
 			}
-			// else if (cookie != null && "none".equals(cookie)) {
-	        //     sessionHandler.setUsingCookies( false );
-	        //     LOG.debug( "Session cookies disabled for context [" + context + "]" );
-			// }
+			else if (cookie != null && "none".equals(cookie)) {
+	            sessionHandler.setUsingCookies( false );
+	            LOG.debug( "Session cookies disabled for context [" + context + "]" );
+			}
 			if (domain != null && domain.length() > 0) {
 				sessionHandler.getSessionCookieConfig().setDomain(domain);
 				LOG.debug("Session cookie domain set to {} for context [{}]", domain, context);
