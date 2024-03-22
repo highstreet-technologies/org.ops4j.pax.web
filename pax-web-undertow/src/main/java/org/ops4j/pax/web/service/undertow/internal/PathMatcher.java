@@ -27,12 +27,14 @@ import io.undertow.server.handlers.resource.ResourceHandler;
 import io.undertow.util.CopyOnWriteMap;
 import io.undertow.util.SubstringMap;
 import io.undertow.util.URLUtils;
+import org.ops4j.pax.web.annotations.Review;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+@Review("Is it needed?")
 public class PathMatcher<T> {
 
-	public static Logger LOG = LoggerFactory.getLogger(PathMatcher.class);
+	public static final Logger LOG = LoggerFactory.getLogger(PathMatcher.class);
 
 	private static final String STRING_PATH_SEPARATOR = "/";
 
@@ -57,7 +59,7 @@ public class PathMatcher<T> {
 	 * @param path The relative path to match
 	 * @return The match match. This will never be null, however if none matched its value field will be
 	 */
-	public PathMatcher.PathMatch<T> match(String path){
+	public PathMatcher.PathMatch<T> match(String path) {
 		if (!exactPathMatches.isEmpty()) {
 			T match = getExactPath(path);
 			if (match != null) {
@@ -161,7 +163,7 @@ public class PathMatcher<T> {
 		if (PathMatcher.STRING_PATH_SEPARATOR.equals(normalizedPath) && match == null) {
 			return this.defaultHandler;
 		}
-		if(match == null) {
+		if (match == null) {
 			return null;
 		}
 

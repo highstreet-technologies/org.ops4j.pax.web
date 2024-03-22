@@ -1,70 +1,126 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 <!--
 
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
+    Copyright 2021 OPS4J.
 
-	    http://www.apache.org/licenses/LICENSE-2.0
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
 
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
 
 -->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+
 	<modelVersion>4.0.0</modelVersion>
+
 	<parent>
 		<groupId>org.ops4j.pax.web</groupId>
 		<artifactId>pax-web-resources</artifactId>
-		<version>8.0.0-SNAPSHOT</version>
+		<version>8.0.15</version>
+		<relativePath>../pom.xml</relativePath>
 	</parent>
-	<artifactId>pax-web-resources-extender</artifactId>
 
-	<name>OPS4J Pax Web - Resources-Extender</name>
+	<artifactId>pax-web-resources-extender</artifactId>
+	<packaging>bundle</packaging>
+
+	<name>OPS4J Pax Web - Resources - Extender</name>
+
 	<description>Provides OSGi-aware Resources according to Servlet 3.0</description>
-	
+
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>org.apache.felix</groupId>
+				<artifactId>maven-bundle-plugin</artifactId>
+				<extensions>true</extensions>
+				<configuration>
+					<instructions>
+						<Bundle-Activator>org.ops4j.pax.web.resources.extender.internal.WebresourcesExtender</Bundle-Activator>
+						<Import-Package>
+							org.apache.commons.lang3;version='[3.0,4)',
+
+							org.ops4j.pax.web.resources.api,
+							org.ops4j.pax.web.resources.api.query,
+
+							<!-- ranges indicate we can work with OSGi Core R6+ -->
+							org.osgi.framework;version="[1.8,2)",
+							org.osgi.framework.wiring;version="[1.2,2)",
+							org.osgi.util.tracker;version="[1.5,2)",
+
+							org.slf4j
+						</Import-Package>
+						<Export-Package>
+							org.ops4j.pax.web.resources.extender
+						</Export-Package>
+						<Private-Package>
+							org.ops4j.pax.web.resources.extender.internal
+						</Private-Package>
+						<Provide-Capability>
+							osgi.extender;osgi.extender="pax.web.resources";version:Version=${version;====;${replace;${project.version};-;.}}
+						</Provide-Capability>
+					</instructions>
+				</configuration>
+			</plugin>
+		</plugins>
+	</build>
 
 	<dependencies>
+
+		<!-- pax-web own artifacts -->
+
 		<dependency>
 			<groupId>org.ops4j.pax.web</groupId>
 			<artifactId>pax-web-resources-api</artifactId>
-			<version>${project.version}</version>
 		</dependency>
-		<dependency>
-			<groupId>org.osgi</groupId>
-			<artifactId>osgi.core</artifactId>
-			<scope>provided</scope>
-		</dependency>
-		<dependency>
-			<groupId>org.osgi</groupId>
-			<artifactId>osgi.cmpn</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>javax.servlet</groupId>
-			<artifactId>javax.servlet-api</artifactId>
-			<scope>provided</scope>
-		</dependency>
+
+		<!-- OPS4J dependencies -->
+
 		<dependency>
 			<groupId>org.ops4j.pax.logging</groupId>
 			<artifactId>pax-logging-api</artifactId>
 			<scope>provided</scope>
 		</dependency>
+
+		<!-- OSGi -->
+
+		<dependency>
+			<groupId>org.osgi</groupId>
+			<artifactId>osgi.core</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.osgi</groupId>
+			<artifactId>osgi.cmpn</artifactId>
+			<scope>provided</scope>
+		</dependency>
+
+		<!-- JavaEE -->
+
+		<dependency>
+			<groupId>jakarta.servlet</groupId>
+			<artifactId>jakarta.servlet-api</artifactId>
+			<scope>provided</scope>
+		</dependency>
+
+		<!-- Other -->
+
 		<dependency>
 			<groupId>org.apache.commons</groupId>
 			<artifactId>commons-lang3</artifactId>
 			<scope>provided</scope>
 		</dependency>
+
+		<!-- Testing -->
+
 		<dependency>
-			<groupId>org.ops4j.pax.tipi</groupId>
-			<artifactId>org.ops4j.pax.tipi.junit</artifactId>
-			<scope>test</scope>
-		</dependency>
-		<dependency>
-			<groupId>org.ops4j.pax.tipi</groupId>
-			<artifactId>org.ops4j.pax.tipi.hamcrest.core</artifactId>
+			<groupId>junit</groupId>
+			<artifactId>junit</artifactId>
 			<scope>test</scope>
 		</dependency>
 		<dependency>
@@ -72,32 +128,7 @@
 			<artifactId>mockito-core</artifactId>
 			<scope>test</scope>
 		</dependency>
-	</dependencies>
 
-	<build>
-		<plugins>
-			<plugin>
-				<!-- Workaround until jar-plugin keeps Manifest -->
-				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-jar-plugin</artifactId>
-			</plugin>
-			<plugin>
-				<groupId>biz.aQute.bnd</groupId>
-				<artifactId>bnd-maven-plugin</artifactId>
-			</plugin>
-			<plugin>
-				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-surefire-plugin</artifactId>
-			</plugin>
-			<plugin>
-				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-source-plugin</artifactId>
-			</plugin>
-			<plugin>
-				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-javadoc-plugin</artifactId>
-			</plugin>
-		</plugins>
-	</build>
+	</dependencies>
 
 </project>

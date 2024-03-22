@@ -25,14 +25,7 @@ import java.util.EventListener;
  * @author Alin Dreghiciu
  * @since 0.4.0, April 05, 2008
  */
-public interface ListenerMapping {
-
-	/**
-	 * Getter.
-	 *
-	 * @return id of the http context this listener belongs to
-	 */
-	String getHttpContextId();
+public interface ListenerMapping extends ContextRelated {
 
 	/**
 	 * Getter.

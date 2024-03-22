@@ -1,232 +1,248 @@
-<?xml version='1.0' encoding='UTF-8' ?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
 
-	<!-- 
-	Copyright 2012 Romain Gilles
-	
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
-	 
-	    http://www.apache.org/licenses/LICENSE-2.0
-	 
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	
-	 -->
+    Copyright 2021 OPS4J.
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
 
 	<modelVersion>4.0.0</modelVersion>
 
 	<parent>
-		<relativePath>../pom.xml</relativePath>
 		<groupId>org.ops4j.pax</groupId>
 		<artifactId>web</artifactId>
-		<version>8.0.0-SNAPSHOT</version>
+		<version>8.0.15</version>
+		<relativePath>../pom.xml</relativePath>
 	</parent>
 
 	<groupId>org.ops4j.pax.web</groupId>
 	<artifactId>pax-web-tomcat</artifactId>
 	<packaging>bundle</packaging>
 
-	<name>OPS4J Pax Web - TomCat</name>
-	<description>
-        Pax Web is a OSGi Http Service based on TomCat 8.
-        Detailed information to be found at http://wiki.ops4j.org/confluence/x/AYAz.
-    </description>
-
-	<properties>
-		<bundle.symbolicName>org.ops4j.pax.web.pax-web-tomcat</bundle.symbolicName>
-		<bundle.namespace>org.ops4j.pax.web.service.tomcat</bundle.namespace>
-		<paxrunnerversion>1.7.4</paxrunnerversion>
-		<sonar.jacoco.itReportPath>${project.basedir}/../target/jacoco-it.exec</sonar.jacoco.itReportPath>
-	</properties>
-
+	<name>OPS4J Pax Web - Tomcat</name>
 
 	<build>
 		<plugins>
 			<plugin>
-				<artifactId>maven-compiler-plugin</artifactId>
-				<configuration>
-					<source>1.8</source>
-					<target>1.8</target>
-					<excludes>
-						<exclude>**/HttpServiceRequestWrapper.java</exclude>
-					</excludes>
-				</configuration>
-			</plugin>
-			<plugin>
 				<groupId>org.apache.felix</groupId>
 				<artifactId>maven-bundle-plugin</artifactId>
+				<extensions>true</extensions>
 				<configuration>
 					<instructions>
-						<Bundle-SymbolicName>${bundle.symbolicName}</Bundle-SymbolicName>
-						<Bundle-Activator>${bundle.namespace}.internal.Activator</Bundle-Activator>
-						<Private-Package>${bundle.namespace}.internal.*</Private-Package>
+						<Bundle-Activator>org.ops4j.pax.web.service.tomcat.internal.Activator</Bundle-Activator>
 						<Import-Package>
-							org.ops4j.pax.web.service; version="${pax-web.osgi.version}",
-							org.ops4j.pax.web.service.spi.*; version="${pax-web.osgi.version}",
-							org.ops4j.pax.swissbox.*,
-							org.ops4j.pax.web.jsp; version="${pax-web.osgi.version}";resolution:=optional,
+							<!-- ranges indicate Servlet API 3.1+ (JavaEE 7+) -->
+							javax.servlet;version="[3.1,5)",
+							javax.servlet.annotation;version="[3.1,5)",
+							javax.servlet.descriptor;version="[3.1,5)",
+							javax.servlet.http;version="[3.1,5)",
+
+							<!-- ranges indicate we can work with OSGi Core R6+ -->
+							org.osgi.framework;version="[1.8,2)",
+							org.osgi.framework.wiring;version="[1.2,2)",
+							org.osgi.util.tracker;version="[1.5,2)",
+
+							<!-- OSGi cmpn -->
+							org.osgi.service.http;version="[1.2,2)",
+							org.osgi.service.http.whiteboard;version="[1.1,2)",
+
+							<!-- from pax-web-api -->
+							org.ops4j.pax.web.service;version="${pax-web.osgi.version}",
+							org.ops4j.pax.web.utils;version="${pax-web.osgi.version}",
+							<!-- from pax-web-spi -->
+							org.ops4j.pax.web.service.spi.*;version="${pax-web.osgi.version}",
+							<!-- from pax-web-jsp -->
+							org.ops4j.pax.web.jsp;version="${pax-web.osgi.version}";resolution:=optional,
+
+							<!-- from pax-logging-api -->
+							org.slf4j;version="[1.7,2)",
+							org.apache.juli.logging,
+
+							<!-- pax-web-tomcat-common / tomcat-api -->
+							org.apache.tomcat;version="${dependency.org.apache.tomcat}",
+							<!-- pax-web-tomcat-common / tomcat-util -->
+							org.apache.tomcat.util;version="${dependency.org.apache.tomcat}",
+							org.apache.tomcat.util.buf;version="${dependency.org.apache.tomcat}",
+							org.apache.tomcat.util.codec.binary;version="${dependency.org.apache.tomcat}",
+							org.apache.tomcat.util.collections;version="${dependency.org.apache.tomcat}",
+							org.apache.tomcat.util.compat;version="${dependency.org.apache.tomcat}",
+							org.apache.tomcat.util.file;version="${dependency.org.apache.tomcat}",
+							org.apache.tomcat.util.json;version="${dependency.org.apache.tomcat}",
+							org.apache.tomcat.util.res;version="${dependency.org.apache.tomcat}",
+							org.apache.tomcat.util.security;version="${dependency.org.apache.tomcat}",
+							org.apache.tomcat.util.threads;version="${dependency.org.apache.tomcat}",
+							org.apache.tomcat.util.threads.res;version="${dependency.org.apache.tomcat}",
+							<!-- pax-web-tomcat-common / tomcat-util-scan -->
+							org.apache.tomcat.util.descriptor;version="${dependency.org.apache.tomcat}",
+							org.apache.tomcat.util.descriptor.tagplugin;version="${dependency.org.apache.tomcat}",
+							org.apache.tomcat.util.descriptor.tld;version="${dependency.org.apache.tomcat}",
+							org.apache.tomcat.util.descriptor.web;version="${dependency.org.apache.tomcat}",
+							org.apache.tomcat.util.digester;version="${dependency.org.apache.tomcat}",
+							org.apache.tomcat.util.scan;version="${dependency.org.apache.tomcat}",
+							<!-- pax-web-tomcat-common / tomcat-embed-core -->
+							org.apache.tomcat.util.bcel;version="${dependency.org.apache.tomcat}",
+							org.apache.tomcat.util.bcel.classfile;version="${dependency.org.apache.tomcat}",
+							org.apache.tomcat.util.modeler;version="${dependency.org.apache.tomcat}",
+							org.apache.tomcat.util.modeler.modules;version="${dependency.org.apache.tomcat}",
+							<!-- pax-web-tomcat-common / tomcat-embed-juli -->
+							org.apache.juli;version="${dependency.org.apache.tomcat}",
+
+							<!-- other -->
+							javax.annotation;version="[1.2,2)";resolution:=optional,
+							javax.management,
+							javax.management.modelmbean,
+							javax.naming,
+							javax.naming.spi,
+							javax.net.ssl,
 							javax.security.auth,
 							javax.security.auth.callback,
 							javax.security.auth.login,
-							javax.servlet.descriptor; version="[2.5.0,4.0)",
-							javax.servlet.jsp.*;version="[2.2,2.3)",
-							javax.servlet.*; version="[2.5.0,4.0)",
-                            javax.websocket,
-                            javax.websocket.server,
+							javax.security.auth.message,
+							javax.security.auth.message.callback,
+							javax.security.auth.message.config,
+							javax.security.auth.message.module,
 							javax.xml.parsers,
-							org.osgi.framework; version="[1.0.0,2.0.0)",
-							org.osgi.service.http; version="[1.0.0,2.0.0)",
-							org.slf4j; version="[1.5,2)",
-							javax.el; version="[2.1.0,3.1.0)";resolution:=optional,
-							org.apache.el; version="2.2"; resolution:=optional,
-							org.apache.el.lang; version="2.2"; resolution:=optional,
-							org.apache.el.parser; version="2.2"; resolution:=optional,
-							org.apache.el.stream; version="2.2"; resolution:=optional,
-							org.apache.el.util; version="2.2"; resolution:=optional
-							org.apache.catalina,
-							org.apache.catalina.authenticator,
-							org.apache.catalina.authenticator.jaspic,
-							org.apache.catalina.connector,
-							org.apache.catalina.core,
-							org.apache.catalina.deploy,
-							org.apache.catalina.filters,
-							org.apache.catalina.loader,
-							org.apache.catalina.manager,
-							org.apache.catalina.manager.host,
-							org.apache.catalina.manager.util,
-							org.apache.catalina.mbeans,
-							org.apache.catalina.realm,
-							org.apache.catalina.security,
-							org.apache.catalina.servlets,
-							org.apache.catalina.session,
-							org.apache.catalina.ssi,
-							org.apache.catalina.startup,
-							org.apache.catalina.users,
-							org.apache.catalina.util,
-							org.apache.catalina.valves,
-							org.apache.coyote,
-							org.apache.coyote.ajp,
-							org.apache.coyote.http11,
-							org.apache.coyote.http11.filters,
-							org.apache.coyote.http11.upgrade,
-							org.apache.coyote.http2,
-							org.apache.naming,
-							org.apache.naming.factory,
-							org.apache.naming.java,
-							org.apache.tomcat.jni,
-							org.apache.tomcat.util.net,
-							org.apache.tomcat.util.net.jsse,
-							org.apache.tomcat.util.digester,
-							org.apache.tomcat.websocket,
-							org.apache.tomcat.websocket.pojo,
-							org.apache.tomcat.websocket.server,
-							*,
-							!javax.microedition.io,
-							!javax.security.auth.x500,
+							javax.xml.transform,
+							org.w3c.dom,
+							org.w3c.dom.ls,
+							org.xml.sax,
+							org.xml.sax.ext,
+							org.xml.sax.helpers,
+
+							<!-- Optional, but used packages -->
+							com.sun.jndi.ldap;resolution:=optional,
+							com.sun.security.auth.login;resolution:=optional,
+							org.graalvm.nativeimage;resolution:=optional,
+							org.ietf.jgss;resolution:=optional,
+							sun.misc;resolution:=optional,
+							sun.rmi.registry;resolution:=optional,
+							sun.rmi.transport;resolution:=optional
+
+							<!-- generated by using '*' -->
+<!--							javax.annotation.security-->
+<!--							version = [1.3,2)-->
+<!--							javax.crypto-->
+<!--							javax.crypto.spec-->
+<!--							javax.ejb-->
+<!--							javax.imageio-->
+<!--							javax.mail-->
+<!--							javax.mail.internet-->
+<!--							javax.management.loading-->
+<!--							javax.management.openmbean-->
+<!--							javax.management.remote-->
+<!--							javax.management.remote.rmi-->
+<!--							javax.naming.directory-->
+<!--							javax.naming.ldap-->
+<!--							javax.naming.spi-->
+<!--							javax.net-->
+<!--							javax.net.ssl-->
+<!--							javax.persistence-->
+<!--							javax.rmi.ssl-->
+<!--							javax.security.auth.spi-->
+<!--							javax.security.auth.x500-->
+<!--							javax.security.cert-->
+<!--							javax.sql-->
+<!--							javax.wsdl-->
+<!--							javax.wsdl.extensions-->
+<!--							javax.wsdl.extensions.soap-->
+<!--							javax.wsdl.factory-->
+<!--							javax.wsdl.xml-->
+<!--							javax.xml.namespace-->
+<!--							javax.xml.rpc-->
+<!--							javax.xml.rpc.handler-->
+<!--							javax.xml.transform.dom-->
+<!--							javax.xml.transform.stream-->
+<!--							javax.xml.ws-->
 						</Import-Package>
-						<Embed-Dependency>*; artifactId=!org.osgi.compendium;
-							scope=compile; type=!pom; inline=true</Embed-Dependency>
-						<Embed-Transitive>true</Embed-Transitive>
+						<Export-Package>
+							<!-- Re-export everything from Tomcat, which after Pax Web 8 is not imported from TIPI -->
+							<!-- org.apache.juli.logging is taken from pax-logging-api -->
+							<!-- some packages are imported from pax-web-tomcat-common -->
+
+							<!-- tomcat-embed-core -->
+							org.apache.catalina;version="${dependency.org.apache.tomcat}",
+							org.apache.catalina.authenticator;version="${dependency.org.apache.tomcat}",
+							org.apache.catalina.authenticator.jaspic;version="${dependency.org.apache.tomcat}",
+							org.apache.catalina.connector;version="${dependency.org.apache.tomcat}",
+							org.apache.catalina.core;version="${dependency.org.apache.tomcat}";-split-package:=merge-first,
+							org.apache.catalina.deploy;version="${dependency.org.apache.tomcat}",
+							org.apache.catalina.filters;version="${dependency.org.apache.tomcat}",
+							org.apache.catalina.loader;version="${dependency.org.apache.tomcat}",
+							org.apache.catalina.manager;version="${dependency.org.apache.tomcat}",
+							org.apache.catalina.manager.host;version="${dependency.org.apache.tomcat}",
+							org.apache.catalina.manager.util;version="${dependency.org.apache.tomcat}",
+							org.apache.catalina.mapper;version="${dependency.org.apache.tomcat}",
+							org.apache.catalina.mbeans;version="${dependency.org.apache.tomcat}",
+							org.apache.catalina.realm;version="${dependency.org.apache.tomcat}",
+							org.apache.catalina.security;version="${dependency.org.apache.tomcat}",
+							org.apache.catalina.servlets;version="${dependency.org.apache.tomcat}",
+							org.apache.catalina.session;version="${dependency.org.apache.tomcat}",
+							org.apache.catalina.startup;version="${dependency.org.apache.tomcat}",
+							org.apache.catalina.users;version="${dependency.org.apache.tomcat}",
+							org.apache.catalina.util;version="${dependency.org.apache.tomcat}",
+							org.apache.catalina.valves;version="${dependency.org.apache.tomcat}",
+							org.apache.catalina.valves.rewrite;version="${dependency.org.apache.tomcat}",
+							org.apache.catalina.webresources;version="${dependency.org.apache.tomcat}",
+							org.apache.catalina.webresources.war;version="${dependency.org.apache.tomcat}",
+							org.apache.coyote;version="${dependency.org.apache.tomcat}",
+							org.apache.coyote.ajp;version="${dependency.org.apache.tomcat}",
+							org.apache.coyote.http11;version="${dependency.org.apache.tomcat}",
+							org.apache.coyote.http11.filters;version="${dependency.org.apache.tomcat}",
+							org.apache.coyote.http11.upgrade;version="${dependency.org.apache.tomcat}",
+							org.apache.coyote.http2;version="${dependency.org.apache.tomcat}",
+							org.apache.naming;version="${dependency.org.apache.tomcat}",
+							org.apache.naming.factory;version="${dependency.org.apache.tomcat}",
+							org.apache.naming.factory.webservices;version="${dependency.org.apache.tomcat}",
+							org.apache.naming.java;version="${dependency.org.apache.tomcat}",
+							org.apache.tomcat.jni;version="${dependency.org.apache.tomcat}",
+							org.apache.tomcat.util.http;version="${dependency.org.apache.tomcat}",
+							org.apache.tomcat.util.http.fileupload;version="${dependency.org.apache.tomcat}",
+							org.apache.tomcat.util.http.fileupload.disk;version="${dependency.org.apache.tomcat}",
+							org.apache.tomcat.util.http.fileupload.impl;version="${dependency.org.apache.tomcat}",
+							org.apache.tomcat.util.http.fileupload.servlet;version="${dependency.org.apache.tomcat}",
+							org.apache.tomcat.util.http.fileupload.util;version="${dependency.org.apache.tomcat}",
+							org.apache.tomcat.util.http.fileupload.util.mime;version="${dependency.org.apache.tomcat}",
+							org.apache.tomcat.util.http.parser;version="${dependency.org.apache.tomcat}",
+							org.apache.tomcat.util.log;version="${dependency.org.apache.tomcat}",
+							org.apache.tomcat.util.net;version="${dependency.org.apache.tomcat}",
+							org.apache.tomcat.util.net.jsse;version="${dependency.org.apache.tomcat}",
+							org.apache.tomcat.util.net.openssl;version="${dependency.org.apache.tomcat}",
+							org.apache.tomcat.util.net.openssl.ciphers;version="${dependency.org.apache.tomcat}"
+						</Export-Package>
+						<_nouses>true</_nouses>
+						<!--
+							https://bnd.bndtools.org/chapters/220-contracts.html
+							https://docs.osgi.org/reference/portable-java-contracts.html
+						-->
+						<_contract>!*</_contract>
 						<Provide-Capability>
-							osgi.service;objectClass=javax.servlet.ServletContext,
-							osgi.service;effective:=active;objectClass=org.ops4j.pax.web.service.spi.ServerController
+							osgi.service;effective:=active;objectClass:List&lt;String&gt;="org.ops4j.pax.web.service.spi.ServerControllerFactory"
 						</Provide-Capability>
-						<_removeheaders>
-							Include-Resource,
-							Private-Package,
-							Embed-Dependency,
-							Embed-Transitive
-						</_removeheaders>
+						<Private-Package>
+							org.ops4j.pax.web.service.tomcat.internal.*
+						</Private-Package>
 					</instructions>
 				</configuration>
-			</plugin>
-			<!-- generate dependencies versions -->
-			<plugin>
-				<groupId>org.apache.servicemix.tooling</groupId>
-				<artifactId>depends-maven-plugin</artifactId>
-				<version>1.2</version>
-				<executions>
-					<execution>
-						<id>generate-depends-file</id>
-						<goals>
-							<goal>generate-depends-file</goal>
-						</goals>
-					</execution>
-				</executions>
-			</plugin>
-			<plugin>
-				<groupId>org.jacoco</groupId>
-				<artifactId>jacoco-maven-plugin</artifactId>
 			</plugin>
 		</plugins>
 	</build>
 
 	<dependencies>
 
-		<!-- Embeded dependencies (not transitive) -->
-		<dependency>
-			<groupId>org.ops4j.base</groupId>
-			<artifactId>ops4j-base-lang</artifactId>
-			<scope>compile</scope>
-			<optional>true</optional>
-		</dependency>
-		<dependency>
-			<groupId>org.ops4j.base</groupId>
-			<artifactId>ops4j-base-util-xml</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>org.ops4j.pax.swissbox</groupId>
-			<artifactId>pax-swissbox-optional-jcl</artifactId>
-			<scope>compile</scope>
-			<optional>true</optional>
-		</dependency>
-		<dependency>
-			<groupId>org.ops4j.pax.swissbox</groupId>
-			<artifactId>pax-swissbox-core</artifactId>
-			<scope>compile</scope>
-			<optional>true</optional>
-		</dependency>
+		<!-- pax-web own artifacts -->
 
-		<!-- provided dependencies -->
-		<dependency>
-			<groupId>org.ops4j.pax.tipi</groupId>
-			<artifactId>org.ops4j.pax.tipi.tomcat-embed-core</artifactId>
-			<scope>provided</scope>
-		</dependency>
-		<dependency>
-			<groupId>org.ops4j.pax.tipi</groupId>
-			<artifactId>org.ops4j.pax.tipi.tomcat-embed-websocket</artifactId>
-			<scope>provided</scope>
-		</dependency>
-        <dependency>
-            <groupId>javax.websocket</groupId>
-            <artifactId>javax.websocket-api</artifactId>
-            <scope>provided</scope>
-        </dependency>
-
-		<!-- Provided dependencies (not transitive) -->
-		<dependency>
-			<groupId>org.slf4j</groupId>
-			<artifactId>slf4j-api</artifactId>
-			<type>jar</type>
-			<scope>provided</scope>
-		</dependency>
-
-		<dependency>
-			<groupId>org.osgi</groupId>
-			<artifactId>osgi.core</artifactId>
-			<scope>provided</scope>
-		</dependency>
-		<dependency>
-			<groupId>org.osgi</groupId>
-			<artifactId>osgi.cmpn</artifactId>
-			<scope>provided</scope>
-		</dependency>
 		<dependency>
 			<groupId>org.ops4j.pax.web</groupId>
 			<artifactId>pax-web-api</artifactId>
@@ -239,107 +255,111 @@
 		</dependency>
 		<dependency>
 			<groupId>org.ops4j.pax.web</groupId>
-			<artifactId>pax-web-jsp</artifactId>
-			<scope>provided</scope>
-			<optional>true</optional>
-		</dependency>
-
-		<!-- pax-url -->
-		<dependency>
-			<groupId>org.ops4j.pax.url</groupId>
-			<artifactId>pax-url-war</artifactId>
-			<classifier>uber</classifier>
+			<artifactId>pax-web-runtime</artifactId>
 			<scope>provided</scope>
 		</dependency>
 
-		<!-- Test dependencies (not transitive) -->
+		<!-- OSGi -->
+
 		<dependency>
-			<groupId>org.apache.geronimo.specs</groupId>
-			<artifactId>geronimo-atinject_1.0_spec</artifactId>
+			<groupId>org.osgi</groupId>
+			<artifactId>osgi.core</artifactId>
 			<scope>provided</scope>
 		</dependency>
 		<dependency>
-			<groupId>${servlet.spec.groupId}</groupId>
-			<artifactId>${servlet.spec.artifactId}</artifactId>
-			<scope>provided</scope>
-		</dependency>
-		<dependency>
-			<groupId>org.eclipse.jdt.core.compiler</groupId>
-			<artifactId>ecj</artifactId>
-			<!-- <version>3.5.1</version> -->
+			<groupId>org.osgi</groupId>
+			<artifactId>osgi.cmpn</artifactId>
 			<scope>provided</scope>
 		</dependency>
 
-		<dependency>
-			<groupId>org.apache.servicemix.specs</groupId>
-			<artifactId>org.apache.servicemix.specs.jsr303-api-1.0.0</artifactId>
-			<scope>provided</scope>
-		</dependency>
+		<!-- JavaEE -->
 
 		<dependency>
-			<groupId>org.apache.servicemix.bundles</groupId>
-			<artifactId>org.apache.servicemix.bundles.jsr305</artifactId>
+			<groupId>jakarta.annotation</groupId>
+			<artifactId>jakarta.annotation-api</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>jakarta.servlet</groupId>
+			<artifactId>jakarta.servlet-api</artifactId>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
+			<groupId>jakarta.security.auth.message</groupId>
+			<artifactId>jakarta.security.auth.message-api</artifactId>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
+			<groupId>jakarta.websocket</groupId>
+			<artifactId>jakarta.websocket-api</artifactId>
+			<scope>test</scope>
+		</dependency>
+
+		<!-- Tomcat -->
+
+		<dependency>
+			<groupId>org.apache.tomcat.embed</groupId>
+			<artifactId>tomcat-embed-core</artifactId>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.tomcat</groupId>
+			<artifactId>tomcat-websocket</artifactId>
+			<scope>test</scope>
+		</dependency>
+
+		<!-- Logging -->
+
+		<dependency>
+			<groupId>org.slf4j</groupId>
+			<artifactId>slf4j-api</artifactId>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.slf4j</groupId>
+			<artifactId>jul-to-slf4j</artifactId>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.logging.log4j</groupId>
+			<artifactId>log4j-slf4j-impl</artifactId>
+			<scope>test</scope>
+		</dependency>
+
+		<!-- Other -->
+
+		<dependency>
+			<groupId>commons-io</groupId>
+			<artifactId>commons-io</artifactId>
 			<scope>test</scope>
 		</dependency>
 
 		<dependency>
-			<groupId>org.apache.geronimo.specs</groupId>
-			<artifactId>geronimo-annotation_1.1_spec</artifactId>
+			<groupId>org.apache.httpcomponents.client5</groupId>
+			<artifactId>httpclient5</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.httpcomponents.core5</groupId>
+			<artifactId>httpcore5</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.httpcomponents.core5</groupId>
+			<artifactId>httpcore5-h2</artifactId>
 			<scope>test</scope>
 		</dependency>
 
-		<dependency>
-			<groupId>org.apache.geronimo.specs</groupId>
-			<artifactId>geronimo-stax-api_1.2_spec</artifactId>
-			<scope>provided</scope>
-		</dependency>
+		<!-- Testing -->
 
 		<dependency>
-			<groupId>org.apache.geronimo.specs</groupId>
-			<artifactId>geronimo-activation_1.1_spec</artifactId>
-			<scope>provided</scope>
+			<groupId>junit</groupId>
+			<artifactId>junit</artifactId>
+			<scope>test</scope>
 		</dependency>
 		<dependency>
-			<groupId>org.apache.geronimo.specs</groupId>
-			<artifactId>geronimo-ejb_3.1_spec</artifactId>
-			<scope>provided</scope>
-		</dependency>
-		<dependency>
-			<groupId>org.apache.geronimo.specs</groupId>
-			<artifactId>geronimo-jpa_2.0_spec</artifactId>
-			<scope>provided</scope>
-		</dependency>
-		<dependency>
-			<groupId>org.apache.geronimo.specs</groupId>
-			<artifactId>geronimo-javamail_1.4_spec</artifactId>
-			<scope>provided</scope>
-		</dependency>
-		<dependency>
-			<groupId>org.apache.geronimo.specs</groupId>
-			<artifactId>geronimo-jaxws_2.2_spec</artifactId>
-			<scope>provided</scope>
-		</dependency>
-		<dependency>
-			<groupId>org.apache.geronimo.specs</groupId>
-			<artifactId>geronimo-osgi-registry</artifactId>
-			<scope>provided</scope>
-		</dependency>
-
-		<dependency>
-			<groupId>org.apache.servicemix.specs</groupId>
-			<artifactId>org.apache.servicemix.specs.jaxb-api-2.2</artifactId>
-			<scope>provided</scope>
-		</dependency>
-		<dependency>
-			<groupId>org.apache.servicemix.specs</groupId>
-			<artifactId>org.apache.servicemix.specs.saaj-api-1.3</artifactId>
-			<scope>provided</scope>
-		</dependency>
-
-		<dependency>
-			<groupId>org.apache.geronimo.specs</groupId>
-			<artifactId>geronimo-jaxrpc_1.1_spec</artifactId>
-			<scope>provided</scope>
+			<groupId>org.mockito</groupId>
+			<artifactId>mockito-core</artifactId>
+			<scope>test</scope>
 		</dependency>
 
 	</dependencies>

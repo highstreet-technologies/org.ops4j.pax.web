@@ -1,0 +1,927 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+    Copyright 2021 OPS4J.
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+
+	<modelVersion>4.0.0</modelVersion>
+
+	<parent>
+		<groupId>org.ops4j.pax.web.itest</groupId>
+		<artifactId>pax-web-itest-container</artifactId>
+		<version>8.0.15</version>
+		<relativePath>../pom.xml</relativePath>
+	</parent>
+
+	<groupId>org.ops4j.pax.web.itest</groupId>
+	<artifactId>pax-web-itest-container-common</artifactId>
+	<packaging>bundle</packaging>
+
+	<name>OPS4J Pax Web - Container Tests - Common</name>
+
+	<description>Abstract Pax Web integration tests for all containers</description>
+
+	<build>
+		<resources>
+			<resource>
+				<directory>src/main/resources</directory>
+				<filtering>true</filtering>
+			</resource>
+		</resources>
+
+		<plugins>
+
+			<!-- Felix plugins -->
+
+			<plugin>
+				<groupId>org.apache.felix</groupId>
+				<artifactId>maven-bundle-plugin</artifactId>
+				<extensions>true</extensions>
+				<configuration>
+					<instructions>
+						<Import-Package>
+							<!-- ranges indicate Servlet API 3.1+ (JavaEE 7+) -->
+							javax.servlet;version="[3.1,5)",
+							javax.servlet.annotation;version="[3.1,5)",
+							javax.servlet.http;version="[3.1,5)",
+							javax.websocket;resolution:=optional,
+							javax.websocket.server;resolution:=optional,
+
+							<!-- ranges indicate we can work with OSGi Core R6+ -->
+							org.osgi.framework;version="[1.8,2)",
+							org.osgi.framework.wiring;version="[1.2,2)",
+							org.osgi.util.tracker;version="[1.5,2)",
+
+							<!-- OSGi cmpn -->
+							org.osgi.service.event;resolution:=optional,
+							org.osgi.service.cm;resolution:=optional,
+							org.osgi.service.http;version="[1.2,2)",
+							org.osgi.service.http.context;version="[1.1,2)",
+							org.osgi.service.http.runtime.dto;version="[1.1,2)",
+							org.osgi.service.http.runtime;version="[1.1,2)",
+
+							<!-- from pax-web-api -->
+							org.ops4j.pax.web.service;version="${pax-web.osgi.version}",
+							org.ops4j.pax.web.service.whiteboard;version="${pax-web.osgi.version}",
+
+							<!-- from pax-web-spi -->
+							org.ops4j.pax.web.service.spi.context,
+							org.ops4j.pax.web.service.spi.model.events,
+							org.ops4j.pax.web.service.spi.servlet,
+
+							<!-- from pax-web-itest-utils -->
+							org.ops4j.pax.web.itest.utils,
+							org.ops4j.pax.web.itest.utils.assertion,
+							org.ops4j.pax.web.itest.utils.client,
+							org.ops4j.pax.web.itest.utils.web,
+
+							<!-- from pax-logging-api -->
+							org.slf4j;version="[1.7,2)",
+
+							<!-- test dependencies -->
+							javax.inject,
+							javax.net.ssl
+						</Import-Package>
+						<DynamicImport-Package>
+							org.junit,
+							org.junit.*,
+							org.ops4j.pax.exam,
+							org.ops4j.pax.exam.*,
+							org.hamcrest,
+							org.jasypt.*,
+							<!--
+								These are dynamically imported, because we don't want refresh after installation
+								of the bundles that export these packages
+							-->
+							org.ops4j.pax.web.extender.whiteboard.runtime,
+							org.ops4j.pax.web.extender.samples.whiteboard,
+							org.ops4j.pax.web.extender.samples.whiteboard.internal,
+							org.ops4j.pax.web.samples.whiteboard.ds,
+
+							org.ops4j.pax.web.resources.api,
+							org.ops4j.pax.web.resources.jsf,
+							javax.faces.application,
+							org.apache.hc.*
+						</DynamicImport-Package>
+						<Export-Package>
+							org.ops4j.pax.web.itest,
+							org.ops4j.pax.web.itest.container.*
+						</Export-Package>
+						<_contract>!*</_contract>
+					</instructions>
+				</configuration>
+			</plugin>
+		</plugins>
+	</build>
+
+	<dependencies>
+
+		<!-- All dependencies have scope=compile, which will become scope=test in Jetty/Tomcat/Undertow test projects -->
+
+		<dependency>
+			<groupId>org.ops4j.pax.web</groupId>
+			<artifactId>pax-web-api</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web</groupId>
+			<artifactId>pax-web-spi</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web</groupId>
+			<artifactId>pax-web-extender-whiteboard</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web</groupId>
+			<artifactId>pax-web-extender-war</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web</groupId>
+			<artifactId>pax-web-runtime</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web</groupId>
+			<artifactId>pax-web-websocket</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web</groupId>
+			<artifactId>pax-web-tomcat-common</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.eclipse.jdt</groupId>
+			<artifactId>ecj</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.ops4j.pax.web.itest</groupId>
+			<artifactId>pax-web-itest-common</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web.itest</groupId>
+			<artifactId>pax-web-itest-utils</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.ops4j.pax.web</groupId>
+			<artifactId>pax-web-compatibility-servlet31</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web</groupId>
+			<artifactId>pax-web-compatibility-cdi12</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web</groupId>
+			<artifactId>pax-web-compatibility-el2</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web</groupId>
+			<artifactId>pax-web-compatibility-interceptor12</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web</groupId>
+			<artifactId>pax-web-compatibility-annotation13</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web</groupId>
+			<artifactId>pax-web-compatibility-jpa2</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web</groupId>
+			<artifactId>pax-web-compatibility-jaxrs2</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web</groupId>
+			<artifactId>pax-web-fragment-myfaces-inject</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web</groupId>
+			<artifactId>pax-web-fragment-myfaces-spifly</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.ops4j.pax.web</groupId>
+			<artifactId>pax-web-resources-api</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web</groupId>
+			<artifactId>pax-web-resources-extender</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web</groupId>
+			<artifactId>pax-web-resources-jsf</artifactId>
+		</dependency>
+
+		<!-- pax-web config samples -->
+
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>config-fragment-tomcat</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>config-fragment-tomcat-vhosts</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>config-fragment-jetty</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>config-fragment-undertow-vhosts</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>auth-config-fragment-jetty</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>auth-config-fragment-tomcat</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>auth-config-fragment-undertow</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>limit-post-config-fragment-tomcat</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>limit-post-config-fragment-undertow</artifactId>
+		</dependency>
+
+		<!-- pax-web war samples -->
+
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>war</artifactId>
+			<type>war</type>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>helloworld-servlet3</artifactId>
+			<type>war</type>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>war-dispatch-jsp</artifactId>
+			<type>war</type>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>jsp-filter</artifactId>
+			<type>war</type>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>war-introspection</artifactId>
+			<type>war</type>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>war-introspection-bundle</artifactId>
+			<type>war</type>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>war-servlet-jsp-file</artifactId>
+			<type>war</type>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>war-simple</artifactId>
+			<type>war</type>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>war-spring</artifactId>
+			<type>war</type>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>war-required</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>war-requiring</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>simple-filter</artifactId>
+			<type>war</type>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>war-simplest-osgi</artifactId>
+			<type>war</type>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>war-simplest-javaee</artifactId>
+			<type>war</type>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>war-http-methods</artifactId>
+			<type>war</type>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>war-http2</artifactId>
+			<type>war</type>
+		</dependency>
+
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>war-jsf23-wired</artifactId>
+			<type>war</type>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>war-jsf23-embedded</artifactId>
+			<type>war</type>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>war-dispatcher</artifactId>
+			<type>war</type>
+		</dependency>
+
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>jsf-resourcehandler-myfaces</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>jsf-resourcehandler-resourcebundle</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>jsf-resourcehandler-resourcebundle-override</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>container-bundle-1</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>container-bundle-2</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>container-bundle-3</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>container-fragment-1</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>container-fragment-2</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>the-wab-fragment</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>the-wab-jar</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>the-wab-itself</artifactId>
+			<type>war</type>
+		</dependency>
+
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>war-vaadin08</artifactId>
+			<type>war</type>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>war-vaadin08-spring</artifactId>
+			<type>war</type>
+		</dependency>
+
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>war-formauth</artifactId>
+			<type>war</type>
+		</dependency>
+
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>wab-container-context-config</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>war-limited-post</artifactId>
+			<type>war</type>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>war-limited-post-fragment-tomcat</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>war-limited-post-fragment-undertow</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>war-jetty-web</artifactId>
+			<type>war</type>
+		</dependency>
+
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>war-websocket-jsr356</artifactId>
+			<type>war</type>
+		</dependency>
+
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>war-security</artifactId>
+			<type>war</type>
+		</dependency>
+
+		<!-- pax-web jsp samples -->
+
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>helloworld-jsp</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>helloworld-jsp-noclasses</artifactId>
+		</dependency>
+
+		<!-- pax-web httpservice/webcontainer samples -->
+
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>hs-helloworld</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>authentication</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>hs-jersey</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>http-custom-context</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>wc-helloworld</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>hs-1</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>hs-2</artifactId>
+		</dependency>
+
+		<!-- pax-web whiteboard samples -->
+
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>whiteboard</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>whiteboard-ds</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>whiteboard-ds-1603</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>whiteboard-ds-dynamic</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>whiteboard-scopes</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>whiteboard-extended</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>whiteboard-1</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>whiteboard-2</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web.samples</groupId>
+			<artifactId>whiteboard-3</artifactId>
+		</dependency>
+
+		<!-- OPS4J dependencies -->
+
+		<dependency>
+			<groupId>org.ops4j.pax.logging</groupId>
+			<artifactId>pax-logging-log4j2</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.ops4j.pax.exam</groupId>
+			<artifactId>pax-exam</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.exam</groupId>
+			<artifactId>pax-exam-junit4</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.exam</groupId>
+			<artifactId>pax-exam-container-native</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.exam</groupId>
+			<artifactId>pax-exam-invoker-junit</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.exam</groupId>
+			<artifactId>pax-exam-inject</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.exam</groupId>
+			<artifactId>pax-exam-extender-service</artifactId>
+		</dependency>
+		<!-- Preferred link because it does not require an mvn url handler implicitely. -->
+		<dependency>
+			<groupId>org.ops4j.pax.exam</groupId>
+			<artifactId>pax-exam-link-mvn</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.ops4j.base</groupId>
+			<artifactId>ops4j-base-io</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.ops4j.pax.url</groupId>
+			<artifactId>pax-url-war</artifactId>
+			<classifier>uber</classifier>
+		</dependency>
+
+		<!-- OSGi -->
+
+		<dependency>
+			<groupId>org.osgi</groupId>
+			<artifactId>osgi.core</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.osgi</groupId>
+			<artifactId>org.osgi.service.cdi</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.osgi</groupId>
+			<artifactId>org.osgi.service.jaxrs</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.apache.felix</groupId>
+			<artifactId>org.apache.felix.metatype</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.felix</groupId>
+			<artifactId>org.apache.felix.configadmin</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.felix</groupId>
+			<artifactId>org.apache.felix.eventadmin</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.felix</groupId>
+			<artifactId>org.apache.felix.scr</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.felix</groupId>
+			<artifactId>org.apache.felix.converter</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.osgi</groupId>
+			<artifactId>org.osgi.util.function</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.osgi</groupId>
+			<artifactId>org.osgi.util.promise</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.apache.aries.component-dsl</groupId>
+			<artifactId>org.apache.aries.component-dsl.component-dsl</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.aries.jax.rs</groupId>
+			<artifactId>org.apache.aries.jax.rs.whiteboard</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.apache.aries.spifly</groupId>
+			<artifactId>org.apache.aries.spifly.dynamic.bundle</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.apache.xbean</groupId>
+			<artifactId>xbean-bundleutils</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.xbean</groupId>
+			<artifactId>xbean-asm9-shaded</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.xbean</groupId>
+			<artifactId>xbean-finder-shaded</artifactId>
+		</dependency>
+
+		<!-- JavaEE -->
+
+		<dependency>
+			<groupId>com.sun.activation</groupId>
+			<artifactId>javax.activation</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>jakarta.annotation</groupId>
+			<artifactId>jakarta.annotation-api</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>jakarta.servlet</groupId>
+			<artifactId>jakarta.servlet-api</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>jakarta.security.auth.message</groupId>
+			<artifactId>jakarta.security.auth.message-api</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>jakarta.xml.bind</groupId>
+			<artifactId>jakarta.xml.bind-api</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>com.sun.xml.bind</groupId>
+			<artifactId>jaxb-impl</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>jakarta.ws.rs</groupId>
+			<artifactId>jakarta.ws.rs-api</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>jakarta.xml.ws</groupId>
+			<artifactId>jakarta.xml.ws-api</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>jakarta.xml.soap</groupId>
+			<artifactId>jakarta.xml.soap-api</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>jakarta.el</groupId>
+			<artifactId>jakarta.el-api</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>jakarta.enterprise</groupId>
+			<artifactId>jakarta.enterprise.cdi-api</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>jakarta.interceptor</groupId>
+			<artifactId>jakarta.interceptor-api</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>jakarta.validation</groupId>
+			<artifactId>jakarta.validation-api</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>jakarta.websocket</groupId>
+			<artifactId>jakarta.websocket-api</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>jakarta.persistence</groupId>
+			<artifactId>jakarta.persistence-api</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.apache.myfaces.core</groupId>
+			<artifactId>myfaces-api</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.myfaces.core</groupId>
+			<artifactId>myfaces-impl</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.primefaces</groupId>
+			<artifactId>primefaces</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.myfaces.trinidad</groupId>
+			<artifactId>trinidad-impl</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.myfaces.trinidad</groupId>
+			<artifactId>trinidad-demo</artifactId>
+			<type>war</type>
+		</dependency>
+
+		<!-- ServiceMIX -->
+
+		<dependency>
+			<groupId>org.apache.servicemix.bundles</groupId>
+			<artifactId>org.apache.servicemix.bundles.aopalliance</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.servicemix.bundles</groupId>
+			<artifactId>org.apache.servicemix.bundles.javax-inject</artifactId>
+		</dependency>
+
+		<!-- Logging -->
+
+		<dependency>
+			<groupId>org.slf4j</groupId>
+			<artifactId>slf4j-api</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.logging.log4j</groupId>
+			<artifactId>log4j-slf4j-impl</artifactId>
+		</dependency>
+
+		<!-- Testing -->
+
+		<dependency>
+			<groupId>junit</groupId>
+			<artifactId>junit</artifactId>
+		</dependency>
+
+		<!-- Other -->
+
+		<dependency>
+			<groupId>commons-collections</groupId>
+			<artifactId>commons-collections</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>commons-beanutils</groupId>
+			<artifactId>commons-beanutils</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>commons-digester</groupId>
+			<artifactId>commons-digester</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>commons-codec</groupId>
+			<artifactId>commons-codec</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.commons</groupId>
+			<artifactId>commons-lang3</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.glassfish.hk2</groupId>
+			<artifactId>hk2-api</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.glassfish.hk2</groupId>
+			<artifactId>hk2-locator</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.glassfish.hk2</groupId>
+			<artifactId>hk2-utils</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.glassfish.hk2</groupId>
+			<artifactId>osgi-resource-locator</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.glassfish.jersey.core</groupId>
+			<artifactId>jersey-common</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.glassfish.jersey.core</groupId>
+			<artifactId>jersey-server</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.glassfish.jersey.core</groupId>
+			<artifactId>jersey-client</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.glassfish.jersey.inject</groupId>
+			<artifactId>jersey-hk2</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.glassfish.jersey.containers</groupId>
+			<artifactId>jersey-container-servlet-core</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.glassfish.jersey.containers</groupId>
+			<artifactId>jersey-container-servlet</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.javassist</groupId>
+			<artifactId>javassist</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.jboss.classfilewriter</groupId>
+			<artifactId>jboss-classfilewriter</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.jboss.weld</groupId>
+			<artifactId>weld-osgi-bundle</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.ow2.asm</groupId>
+			<artifactId>asm</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ow2.asm</groupId>
+			<artifactId>asm-commons</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ow2.asm</groupId>
+			<artifactId>asm-util</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ow2.asm</groupId>
+			<artifactId>asm-tree</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ow2.asm</groupId>
+			<artifactId>asm-analysis</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.apache.servicemix.bundles</groupId>
+			<artifactId>org.apache.servicemix.bundles.jasypt</artifactId>
+			<scope>runtime</scope>
+		</dependency>
+
+		<dependency>
+			<groupId>org.apache.cxf</groupId>
+			<artifactId>cxf-core</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.cxf</groupId>
+			<artifactId>cxf-rt-frontend-jaxrs</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.cxf</groupId>
+			<artifactId>cxf-rt-security</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.cxf</groupId>
+			<artifactId>cxf-rt-transports-http</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.cxf</groupId>
+			<artifactId>cxf-rt-rs-client</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.ws.xmlschema</groupId>
+			<artifactId>xmlschema-core</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.apache.cxf</groupId>
+			<artifactId>cxf-rt-rs-sse</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.codehaus.woodstox</groupId>
+			<artifactId>stax2-api</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>com.fasterxml.woodstox</groupId>
+			<artifactId>woodstox-core</artifactId>
+		</dependency>
+
+	</dependencies>
+
+</project>

@@ -1,28 +1,30 @@
-<?xml version='1.0' encoding='UTF-8' ?>
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+    Copyright 2021 OPS4J.
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+-->
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+
 	<modelVersion>4.0.0</modelVersion>
-	
-	<!-- 
-	
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
-	 
-	    http://www.apache.org/licenses/LICENSE-2.0
-	 
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	
-	 -->
 
 	<parent>
-		<relativePath>../pom.xml</relativePath>
 		<groupId>org.ops4j.pax</groupId>
 		<artifactId>web</artifactId>
-		<version>8.0.0-SNAPSHOT</version>
+		<version>8.0.15</version>
+		<relativePath>../pom.xml</relativePath>
 	</parent>
 
 	<groupId>org.ops4j.pax.web</groupId>
@@ -30,49 +32,126 @@
 	<packaging>bundle</packaging>
 
 	<name>OPS4J Pax Web - API</name>
-	<description>
-    Pax Web is a OSGi Http Service abstracting the WebContainer (Jetty, Tomcat, Undertow).
-    Detailed information to be found at http://wiki.ops4j.org/confluence/x/AYAz.
-  </description>
-
-	<properties>
-		<bundle.symbolicName>org.ops4j.pax.web.pax-web-api</bundle.symbolicName>
-		<bundle.namespace>org.ops4j.pax.web.service</bundle.namespace>
-		<sonar.jacoco.itReportPath>${project.basedir}/../target/jacoco-it.exec</sonar.jacoco.itReportPath>
-	</properties>
 
 	<build>
 		<plugins>
 			<plugin>
+				<artifactId>maven-dependency-plugin</artifactId>
+				<executions>
+					<execution>
+						<id>unpack-tomcat-servlet-api</id>
+						<phase>generate-resources</phase>
+						<goals>
+							<goal>unpack</goal>
+						</goals>
+						<configuration>
+							<artifactItems>
+								<artifactItem>
+									<groupId>org.apache.tomcat</groupId>
+									<artifactId>tomcat-servlet-api</artifactId>
+								</artifactItem>
+							</artifactItems>
+							<outputDirectory>${project.build.directory}/unpack-deps/tomcat-servlet-api</outputDirectory>
+						</configuration>
+					</execution>
+					<execution>
+						<id>unpack-tomcat-jsp-api</id>
+						<phase>generate-resources</phase>
+						<goals>
+							<goal>unpack</goal>
+						</goals>
+						<configuration>
+							<artifactItems>
+								<artifactItem>
+									<groupId>org.apache.tomcat</groupId>
+									<artifactId>tomcat-jsp-api</artifactId>
+								</artifactItem>
+							</artifactItems>
+							<outputDirectory>${project.build.directory}/unpack-deps/tomcat-jsp-api</outputDirectory>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
+			<plugin>
+				<artifactId>maven-resources-plugin</artifactId>
+				<executions>
+					<execution>
+						<!--
+							copy javax/servlet/resources and javax/servlet/jsp/resources which will be
+							available to slightly modified org.apache.tomcat.util.descriptor.DigesterFactory
+							Originally Tomcat load these resources through java.lang.Class.getResource() method
+							of javax.servlet.ServletContext and javax.servlet.jsp.JspContext classes
+						-->
+						<id>copy-selected-resources</id>
+						<phase>process-resources</phase>
+						<goals>
+							<goal>copy-resources</goal>
+						</goals>
+						<configuration>
+							<outputDirectory>${project.build.outputDirectory}/META-INF/resources</outputDirectory>
+							<resources>
+								<resource>
+									<directory>${project.build.directory}/unpack-deps/tomcat-servlet-api/javax/servlet/resources</directory>
+									<includes>
+										<include>*.xsd</include>
+										<include>*.dtd</include>
+									</includes>
+								</resource>
+								<resource>
+									<directory>${project.build.directory}/unpack-deps/tomcat-jsp-api/javax/servlet/jsp/resources</directory>
+									<includes>
+										<include>*.xsd</include>
+										<include>*.dtd</include>
+									</includes>
+								</resource>
+							</resources>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
+			<plugin>
 				<groupId>org.apache.felix</groupId>
 				<artifactId>maven-bundle-plugin</artifactId>
+				<extensions>true</extensions>
 				<configuration>
 					<instructions>
-						<Bundle-SymbolicName>${bundle.symbolicName}</Bundle-SymbolicName>
 						<Import-Package>
-							javax.servlet.*; version="[2.3.0,4.0.0)",
-							org.osgi.framework; version="[1.0.0,2.0.0)",
-							org.osgi.framework.wiring; version="[1.0,2.0)",
-							org.slf4j;version="[1.5,2.0)",
-							org.osgi.service.packageadmin;resolution:=optional,
-							org.apache.xbean.finder; version="[4.4,5)",
-							*
+							<!-- ranges indicate Servlet API 3.1+ (JavaEE 7+) -->
+							javax.servlet;version="[3.1,5)",
+							javax.servlet.annotation;version="[3.1,5)",
+							javax.servlet.http;version="[3.1,5)",
+
+							<!-- ranges indicate we can work with OSGi Core R6+ -->
+							org.osgi.dto;version="[1.0,2)",
+							org.osgi.framework;version="[1.8,2)",
+							org.osgi.framework.wiring;version="[1.2,2)",
+
+							<!-- from pax-logging-api -->
+							org.slf4j;version="[1.7,2)"
 						</Import-Package>
 						<Export-Package>
-							${bundle.namespace};version="${pax-web.osgi.version}",
-							${bundle.namespace}.whiteboard;version="${pax-web.osgi.version}",
+							<!-- pax-web-api -->
+							org.ops4j.pax.web.service;version="${pax-web.osgi.version}",
+							org.ops4j.pax.web.service.views;version="${pax-web.osgi.version}",
+							org.ops4j.pax.web.service.whiteboard;version="${pax-web.osgi.version}",
+							org.ops4j.pax.web.utils;version="${pax-web.osgi.version}",
+
+							<!-- re-export OSGi CMPN R7 102 HTTP Service packages -->
 							org.osgi.service.http;version="1.2.1",
-							org.osgi.service.http.context;version="1.0",
-							org.osgi.service.http.runtime;version="1.0",
-							org.osgi.service.http.runtime.dto;version="1.0",
-							org.ops4j.pax.web.utils;version="${pax-web.osgi.version}"
+
+							<!-- re-export OSGi CMPN R7 140 HTTP Whiteboard packages -->
+							org.osgi.service.http.context;version="1.1",
+							org.osgi.service.http.runtime;version="1.1",
+							org.osgi.service.http.runtime.dto;version="1.1",
+							org.osgi.service.http.whiteboard;version="1.1",
+							org.osgi.service.http.whiteboard.annotations;version="1.1",
+							org.osgi.service.http.whiteboard.propertytypes;version="1.1"
 						</Export-Package>
-						<_removeheaders>
-							Include-Resource,
-							Private-Package,
-							Embed-Dependency,
-							Embed-Transitive
-						</_removeheaders>
+						<Include-Resource>
+							{maven-resources},
+							META-INF/resources/=${project.build.outputDirectory}/META-INF/resources/
+						</Include-Resource>
+						<_contract>!*</_contract>
 					</instructions>
 				</configuration>
 			</plugin>
@@ -81,47 +160,137 @@
 
 	<dependencies>
 
-		<!-- Provided dependencies (not transitive) -->
+		<!--
+			Good place to remind https://maven.apache.org/guides/introduction/introduction-to-dependency-mechanism.html
+			If we declare dependency with scope:
+			 - "compile"
+			    - transitive "compile" dependency becomes "compile" as well
+			    - transitive "provided" dependency is not visible
+			    - transitive "runtime" dependency becomes "runtime" as well
+			    - transitive "test" dependency is not visible
+			 - "provided"
+			    - transitive "compile" dependency becomes "provided"
+			    - transitive "provided" dependency is not visible
+			    - transitive "runtime" dependency becomes "provided"
+			    - transitive "test" dependency is not visible
+			 - "runtime"
+			    - transitive "compile" dependency becomes "runtime"
+			    - transitive "provided" dependency is not visible
+			    - transitive "runtime" dependency becomes "runtime"
+			    - transitive "test" dependency is not visible
+			 - "test"
+			    - transitive "compile" dependency becomes "test"
+			    - transitive "provided" dependency is not visible
+			    - transitive "runtime" dependency becomes "test"
+			    - transitive "test" dependency is not visible
+
+			Summarizing:
+			 - "compile": all classpaths, propagation to depending projects
+			 - "provided": compilation and test classpaths, but no propagation to depending projects
+			 - "runtime": not required for compilation, so runtime and test classpaths, propagation to depending projects
+			 - "test": test classpath, no propagation
+
+			Some explanations:
+			 - having OSGi Core and CMPN as "provided" means (here) that projects depending on pax-web-api will
+			   have to add explicit dependencies on OSGi jars if needed
+			 - having slf4j-api as "provided" means that projects depending on pax-web-api may provide different
+			   library that will satisfy slf4j-api - e.g., pax-logging-api
+		-->
+
+		<!-- OSGi -->
+
 		<dependency>
 			<groupId>org.osgi</groupId>
 			<artifactId>osgi.core</artifactId>
+			<scope>provided</scope>
 		</dependency>
-        <dependency>
-            <groupId>org.osgi</groupId>
-            <artifactId>osgi.annotation</artifactId>
-        </dependency>
 		<dependency>
 			<groupId>org.osgi</groupId>
 			<artifactId>osgi.cmpn</artifactId>
 			<scope>provided</scope>
 		</dependency>
+
+		<!-- JavaEE -->
+
 		<dependency>
-			<groupId>${servlet.spec.groupId}</groupId>
-			<artifactId>${servlet.spec.artifactId}</artifactId>
-			<scope>provided</scope>
-		</dependency>
-		<dependency>
-			<groupId>org.slf4j</groupId>
-			<artifactId>slf4j-api</artifactId>
-			<type>jar</type>
-			<scope>provided</scope>
-		</dependency>
-		<dependency>
-			<groupId>org.apache.xbean</groupId>
-			<artifactId>xbean-finder</artifactId>
-			<scope>provided</scope>
-		</dependency>
-		<dependency>
-			<groupId>org.apache.xbean</groupId>
-			<artifactId>xbean-reflect</artifactId>
-			<scope>provided</scope>
-		</dependency>
-		<dependency>
-			<groupId>org.apache.xbean</groupId>
-			<artifactId>xbean-bundleutils</artifactId>
+			<groupId>jakarta.servlet</groupId>
+			<artifactId>jakarta.servlet-api</artifactId>
 			<scope>provided</scope>
 		</dependency>
 
+		<!-- Logging -->
+
+		<dependency>
+			<groupId>org.slf4j</groupId>
+			<artifactId>slf4j-api</artifactId>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.logging.log4j</groupId>
+			<artifactId>log4j-slf4j-impl</artifactId>
+			<scope>test</scope>
+		</dependency>
+
+		<!-- Tomcat -->
+
+		<dependency>
+			<!--
+				This dependency is used to take javax.servlet.resources package with XSDs/DTDs into pax-web-tomcat-common
+				to satisfy the DigesterFactory
+			-->
+			<groupId>org.apache.tomcat</groupId>
+			<artifactId>tomcat-servlet-api</artifactId>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
+			<!--
+				This dependency is used to take javax.servlet.jsp.resources package with XSDs/DTDs into pax-web-tomcat-common
+				to satisfy the DigesterFactory
+			-->
+			<groupId>org.apache.tomcat</groupId>
+			<artifactId>tomcat-jsp-api</artifactId>
+			<scope>provided</scope>
+		</dependency>
+
+		<!-- Testing -->
+
+		<dependency>
+			<groupId>junit</groupId>
+			<artifactId>junit</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework</groupId>
+			<artifactId>spring-core</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>commons-io</groupId>
+			<artifactId>commons-io</artifactId>
+			<scope>test</scope>
+		</dependency>
+
 	</dependencies>
+
+	<profiles>
+		<profile>
+			<id>jdk11</id>
+			<activation>
+				<jdk>[9,)</jdk>
+			</activation>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>org.apache.maven.plugins</groupId>
+						<artifactId>maven-surefire-plugin</artifactId>
+						<version>${plugin.maven-surefire-plugin}</version>
+						<configuration>
+							<argLine>--add-opens=java.base/jdk.internal.loader=ALL-UNNAMED</argLine>
+						</configuration>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+	</profiles>
 
 </project>

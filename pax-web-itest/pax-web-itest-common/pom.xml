@@ -1,240 +1,159 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
 
-	<!-- 
-	
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
-	 
-	    http://www.apache.org/licenses/LICENSE-2.0
-	 
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	
-	 -->
+    Copyright 2021 OPS4J.
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
 
 	<modelVersion>4.0.0</modelVersion>
+
 	<parent>
 		<groupId>org.ops4j.pax.web</groupId>
 		<artifactId>pax-web-itest</artifactId>
-		<version>8.0.0-SNAPSHOT</version>
+		<version>8.0.15</version>
+		<relativePath>../pom.xml</relativePath>
 	</parent>
+
 	<groupId>org.ops4j.pax.web.itest</groupId>
 	<artifactId>pax-web-itest-common</artifactId>
-	<packaging>jar</packaging>
+	<packaging>bundle</packaging>
 
-	<name>OPS4J Pax Web - Integration test common</name>
+	<name>OPS4J Pax Web - Integration Tests - Common</name>
 
-	<description>Abstract Pax Web integration tests for all containers</description>
+	<description>Abstract Pax Exam base class for many integration tests</description>
+
+	<build>
+		<resources>
+			<resource>
+				<directory>src/main/resources</directory>
+				<filtering>true</filtering>
+			</resource>
+		</resources>
+
+		<plugins>
+
+			<!-- Felix plugins -->
+
+			<plugin>
+				<groupId>org.apache.felix</groupId>
+				<artifactId>maven-bundle-plugin</artifactId>
+				<extensions>true</extensions>
+				<configuration>
+					<instructions>
+						<Import-Package>
+							<!-- ranges indicate Servlet API 3.1+ (JavaEE 7+) -->
+							javax.servlet;version="[3.1,5)",
+							javax.servlet.annotation;version="[3.1,5)",
+							javax.servlet.http;version="[3.1,5)",
+							javax.websocket;resolution:=optional,
+							javax.websocket.server;resolution:=optional,
+
+							<!-- ranges indicate we can work with OSGi Core R6+ -->
+							org.osgi.framework;version="[1.8,2)",
+							org.osgi.framework.wiring;version="[1.2,2)",
+							org.osgi.util.tracker;version="[1.5,2)",
+
+							<!-- OSGi cmpn -->
+							org.osgi.service.cm;resolution:=optional,
+							org.osgi.service.http;version="[1.2,2)",
+							org.osgi.service.http.context;version="[1.1,2)",
+							org.osgi.service.http.runtime.dto;version="[1.1,2)",
+							org.osgi.service.http.runtime;version="[1.1,2)",
+
+							<!-- from pax-web-api -->
+							org.ops4j.pax.web.service;version="${pax-web.osgi.version}",
+
+							<!-- from pax-web-spi -->
+							org.ops4j.pax.web.service.spi.model.events;version="${pax-web.osgi.version}",
+							org.ops4j.pax.web.service.spi.servlet;version="${pax-web.osgi.version}",
+
+							<!-- from pax-web-itest-utils -->
+							org.ops4j.pax.web.itest.utils,
+							org.ops4j.pax.web.itest.utils.assertion,
+							org.ops4j.pax.web.itest.utils.client,
+							org.ops4j.pax.web.itest.utils.web,
+
+							<!-- from pax-logging-api -->
+							org.slf4j;version="[1.7,2)",
+							org.ops4j.pax.logging,
+
+							<!-- test dependencies -->
+							javax.inject
+						</Import-Package>
+						<DynamicImport-Package>
+							org.junit,
+							org.junit.*,
+							org.ops4j.pax.exam,
+							org.ops4j.pax.exam.*
+						</DynamicImport-Package>
+						<Export-Package>
+							org.ops4j.pax.web.itest
+						</Export-Package>
+						<_contract>!*</_contract>
+					</instructions>
+				</configuration>
+			</plugin>
+		</plugins>
+	</build>
 
 	<dependencies>
-        <dependency>
-            <groupId>org.ops4j.pax.web.itest</groupId>
-            <artifactId>pax-web-itest-base</artifactId>
-            <version>${project.version}</version>
-            <scope>provided</scope>
-        </dependency>
-		<dependency>
-			<groupId>org.osgi</groupId>
-			<artifactId>osgi.core</artifactId>
-			<scope>provided</scope>
-		</dependency>
-		<dependency>
-			<groupId>org.osgi</groupId>
-			<artifactId>osgi.cmpn</artifactId>
-			<scope>provided</scope>
-		</dependency>
 
-		<!-- Pax-web itself -->
+		<!-- All dependencies have scope=compile, which will become scope=test in Jetty/Tomcat/Undertow test projects -->
+
 		<dependency>
 			<groupId>org.ops4j.pax.web</groupId>
 			<artifactId>pax-web-api</artifactId>
-			<scope>provided</scope>
 		</dependency>
 		<dependency>
 			<groupId>org.ops4j.pax.web</groupId>
 			<artifactId>pax-web-spi</artifactId>
-			<scope>provided</scope>
-		</dependency>
-        <dependency>
-            <groupId>org.ops4j.pax.web</groupId>
-            <artifactId>pax-web-jsp</artifactId>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.ops4j.pax.web</groupId>
-            <artifactId>pax-web-resources-api</artifactId>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.ops4j.pax.web</groupId>
-            <artifactId>pax-web-resources-extender</artifactId>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.ops4j.pax.web</groupId>
-            <artifactId>pax-web-resources-jsf</artifactId>
-            <scope>provided</scope>
-        </dependency>
-		<dependency>
-			<groupId>org.ops4j.pax.web</groupId>
-			<artifactId>pax-web-extender-whiteboard</artifactId>
-			<scope>provided</scope>
 		</dependency>
 		<dependency>
-			<groupId>org.ops4j.pax.web</groupId>
-			<artifactId>pax-web-extender-war</artifactId>
-			<scope>provided</scope>
+			<groupId>org.ops4j.pax.web.itest</groupId>
+			<artifactId>pax-web-itest-utils</artifactId>
 		</dependency>
+
+		<!-- OPS4J dependencies -->
+
 		<dependency>
-			<groupId>org.slf4j</groupId>
-			<artifactId>slf4j-api</artifactId>
-			<scope>provided</scope>
-		</dependency>
-		<dependency>
-			<groupId>${servlet.spec.groupId}</groupId>
-			<artifactId>${servlet.spec.artifactId}</artifactId>
-			<scope>provided</scope>
-		</dependency>
-		<dependency>
-			<groupId>javax.websocket</groupId>
-			<artifactId>javax.websocket-api</artifactId>
-			<scope>provided</scope>
-		</dependency>
-		<dependency>
-			<groupId>org.eclipse.jetty</groupId>
-			<artifactId>jetty-client</artifactId>
+			<groupId>org.ops4j.pax.logging</groupId>
+			<artifactId>pax-logging-log4j2</artifactId>
 			<scope>provided</scope>
 		</dependency>
 
 		<dependency>
-			<groupId>junit</groupId>
-			<artifactId>junit</artifactId>
-			<scope>provided</scope>
+			<groupId>org.ops4j.pax.exam</groupId>
+			<artifactId>pax-exam</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.exam</groupId>
+			<artifactId>pax-exam-junit4</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>jakarta.servlet</groupId>
+			<artifactId>jakarta.servlet-api</artifactId>
 		</dependency>
 
-        <dependency>
-            <groupId>org.ops4j.pax.exam</groupId>
-            <artifactId>pax-exam-junit4</artifactId>
-            <scope>provided</scope>
-        </dependency>
+		<!-- ServiceMIX -->
 
-        <dependency>
-            <groupId>org.apache.servicemix.bundles</groupId>
-            <artifactId>org.apache.servicemix.bundles.javax-inject</artifactId>
-            <version>1_2</version>
-            <scope>provided</scope>
-        </dependency>
+		<dependency>
+			<groupId>org.apache.servicemix.bundles</groupId>
+			<artifactId>org.apache.servicemix.bundles.javax-inject</artifactId>
+		</dependency>
 
-        <dependency>
-            <groupId>org.apache.xbean</groupId>
-            <artifactId>xbean-reflect</artifactId>
-            <scope>provided</scope>
-        </dependency>
-
-        <dependency>
-            <groupId>org.apache.commons</groupId>
-            <artifactId>commons-lang3</artifactId>
-            <scope>provided</scope>
-        </dependency>
-
-        <dependency>
-            <groupId>org.apache.myfaces.core</groupId>
-            <artifactId>myfaces-api</artifactId>
-            <scope>provided</scope>
-        </dependency>
-
-        <dependency>
-            <groupId>org.eclipse.jetty.websocket</groupId>
-            <artifactId>websocket-api</artifactId>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.eclipse.jetty.websocket</groupId>
-            <artifactId>websocket-common</artifactId>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.eclipse.jetty.websocket</groupId>
-            <artifactId>websocket-server</artifactId>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.eclipse.jetty.websocket</groupId>
-            <artifactId>websocket-client</artifactId>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.eclipse.jetty.websocket</groupId>
-            <artifactId>websocket-servlet</artifactId>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>javax.json</groupId>
-            <artifactId>javax.json-api</artifactId>
-            <version>1.0</version>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.ops4j.pax.web.samples</groupId>
-            <artifactId>whiteboard</artifactId>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.ops4j.pax.web.samples</groupId>
-            <artifactId>whiteboard-ds</artifactId>
-            <scope>provided</scope>
-        </dependency>
-        <!-- test framework -->
-        <dependency>
-            <groupId>com.cedarsoft.commons</groupId>
-            <artifactId>test-utils</artifactId>
-            <version>6.0.1</version>
-            <scope>provided</scope>
-        </dependency>
 	</dependencies>
 
-	<build>
-		<plugins>
-			<plugin>
-				<groupId>org.apache.felix</groupId>
-				<artifactId>maven-bundle-plugin</artifactId>
-				<configuration>
-					<instructions>
-						<DynamicImport-Package>
-							*
-						</DynamicImport-Package>
-						<Import-Package>
-							javax.servlet;version="[2.5,4)",
-							javax.servlet.annotation;version="[2.5,4)",
-							javax.servlet.http;version="[2.5,4)",
-							javax.inject,
-							org.ops4j.pax.web.extender.whiteboard.runtime,
-							org.ops4j.pax.web.itest.base,
-							org.ops4j.pax.web.itest.base.*,
-							org.ops4j.pax.web.service,
-							org.ops4j.pax.web.service.spi,
-							org.ops4j.pax.web.service.whiteboard,
-							org.osgi.*,
-							org.slf4j
-						</Import-Package>
-					</instructions>
-				</configuration>
-				<executions>
-					<execution>
-						<id>baseline</id>
-						<goals>
-							<goal>baseline</goal>
-						</goals>
-						<configuration>
-							<skip>true</skip>
-						</configuration>
-					</execution>
-				</executions>
-			</plugin>
-		</plugins>
-	</build>
 </project>

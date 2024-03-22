@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+    Copyright 2021 OPS4J.
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+
+	<modelVersion>4.0.0</modelVersion>
+
+	<parent>
+		<groupId>org.ops4j.pax.web</groupId>
+		<artifactId>samples</artifactId>
+		<version>8.0.15</version>
+		<relativePath>../pom.xml</relativePath>
+	</parent>
+
+	<groupId>org.ops4j.pax.web.samples</groupId>
+	<artifactId>samples-war</artifactId>
+	<packaging>pom</packaging>
+
+	<name>OPS4J Pax Web WAR Samples</name>
+
+	<modules>
+		<module>war</module>
+		<module>war-simple</module>
+		<module>war-simplest-javaee</module>
+		<module>war-simplest-osgi</module>
+		<module>war-servlet-jsp-file</module>
+		<module>war-most-complex</module>
+		<module>war-spring</module>
+		<module>war-spring-wired</module>
+		<module>war-introspection</module>
+		<module>war-introspection-bundle</module>
+		<module>helloworld-servlet3</module>
+		<module>war-dispatch-jsp</module>
+		<module>jsp-filter</module>
+		<module>war-requiring</module>
+		<module>war-required</module>
+		<module>simple-filter</module>
+		<module>war-authentication</module>
+		<module>war-vaadin08</module>
+		<module>war-vaadin08-spring</module>
+<!--		<module>war-vaadin20-spring</module>-->
+		<module>war-formauth</module>
+		<module>wab-container-context-config</module>
+		<module>war-limited-post</module>
+		<module>war-limited-post-fragment-tomcat</module>
+		<module>war-limited-post-fragment-undertow</module>
+		<module>war-jetty-web</module>
+		<module>war-websocket-jsr356</module>
+		<module>war-security</module>
+		<module>war-http-methods</module>
+		<module>war-http2</module>
+		<module>war-keycloak</module>
+		<module>war-dispatcher</module>
+		<module>war-default</module>
+	</modules>
+
+</project>

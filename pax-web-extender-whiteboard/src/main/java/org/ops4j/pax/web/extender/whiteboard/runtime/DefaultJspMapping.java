@@ -28,75 +28,50 @@ import org.ops4j.pax.web.service.whiteboard.JspMapping;
  * @author Alin Dreghiciu
  * @since 0.4.0, March 15, 2008
  */
-public class DefaultJspMapping implements JspMapping {
+public class DefaultJspMapping extends AbstractContextRelated implements JspMapping {
 
-	/**
-	 * Http Context id.
-	 */
-	private String httpContextId;
-	/**
-	 * Url patterns.
-	 */
+	/** Url patterns. */
 	private String[] urlPatterns;
-	/**
-	 * Initialization parameters.
-	 */
-	private Map<String, String> initParams;
+	/** JSP servlet */
+	private String jspFile;
+	/** Initialization parameters. */
+	private Map<String, String> initParameters;
 
-	/**
-	 * @see JspMapping#getInitParams()
-	 */
-	public Map<String, String> getInitParams() {
-		return initParams;
-	}
-
-	/**
-	 * @see JspMapping#getHttpContextId()
-	 */
-	public String getHttpContextId() {
-		return httpContextId;
-	}
-
-	/**
-	 * @see JspMapping#getUrlPatterns()
-	 */
+	@Override
 	public String[] getUrlPatterns() {
 		return urlPatterns;
 	}
 
-	/**
-	 * Setter.
-	 *
-	 * @param httpContextId id of the http context this jsp belongs to
-	 */
-	public void setHttpContextId(final String httpContextId) {
-		this.httpContextId = httpContextId;
+	@Override
+	public String getJspFile() {
+		return jspFile;
 	}
 
-	/**
-	 * Setter.
-	 *
-	 * @param urlPatterns array of url patterns
-	 */
-	public void setUrlPatterns(String... urlPatterns) {
+	@Override
+	public Map<String, String> getInitParameters() {
+		return initParameters;
+	}
+
+	public void setUrlPatterns(String[] urlPatterns) {
 		this.urlPatterns = urlPatterns;
 	}
 
-	/**
-	 * Seter.
-	 *
-	 * @param initParams map of initialization parameters
-	 */
-	public void setInitParams(final Map<String, String> initParams) {
-		this.initParams = initParams;
+	public void setJspFile(String jspFile) {
+		this.jspFile = jspFile;
+	}
+
+	public void setInitParameters(Map<String, String> initParameters) {
+		this.initParameters = initParameters;
 	}
 
 	@Override
 	public String toString() {
-		return this.getClass().getSimpleName() +
-				"{httpContextId=" + httpContextId +
-				",urlPatterns=" + Arrays.deepToString(urlPatterns) +
-				",initParams=" + initParams + "}";
+		return "DefaultJspMapping{"
+				+ "urlPatterns=" + Arrays.toString(urlPatterns)
+				+ ", jspFile='" + jspFile + '\''
+				+ ", contextSelectFilter='" + contextSelectFilter + '\''
+				+ ", contextId='" + contextId + '\''
+				+ '}';
 	}
 
 }

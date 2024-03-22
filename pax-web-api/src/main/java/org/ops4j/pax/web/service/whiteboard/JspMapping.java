@@ -25,28 +25,24 @@ import java.util.Map;
  * @author Alin Dreghiciu
  * @since 0.4.0, March 15, 2008
  */
-public interface JspMapping {
+public interface JspMapping extends ContextRelated {
 
 	/**
-	 * Getter.
-	 *
-	 * @return id of the http context this jsp belongs to
-	 */
-	String getHttpContextId();
-
-	/**
-	 * Getter.
-	 *
-	 * @return an array of url patterns this jsp support maps to. If null, a
-	 * default "*.jsp" will be used.
+	 * Returns an array of URL patterns that map to JSP servlet.
+	 * @return
 	 */
 	String[] getUrlPatterns();
 
 	/**
-	 * Getter.
-	 *
-	 * @return map of initialization parameters.
+	 * Returns a "jsp servlet file" as in {@code <servlet>/<jsp-file>} in {@code web.xml}
+	 * @return
 	 */
-	Map<String, String> getInitParams();
+	String getJspFile();
+
+	/**
+	 * Returns optional map of initialization parameters, that may be used to configure Jasper servlet
+	 * @return
+	 */
+	Map<String, String> getInitParameters();
 
 }

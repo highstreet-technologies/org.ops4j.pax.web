@@ -1,29 +1,30 @@
-<?xml version='1.0' encoding='UTF-8' ?>
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+    Copyright 2021 OPS4J.
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+-->
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
 
-	<!-- 
-	
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
-	 
-	    http://www.apache.org/licenses/LICENSE-2.0
-	 
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	
-	 -->
-	 
 	<modelVersion>4.0.0</modelVersion>
 
 	<parent>
-		<relativePath>../pom.xml</relativePath>
 		<groupId>org.ops4j.pax</groupId>
 		<artifactId>web</artifactId>
-		<version>8.0.0-SNAPSHOT</version>
+		<version>8.0.15</version>
+		<relativePath>../pom.xml</relativePath>
 	</parent>
 
 	<groupId>org.ops4j.pax.web</groupId>
@@ -31,181 +32,112 @@
 	<packaging>bundle</packaging>
 
 	<name>OPS4J Pax Web - Undertow</name>
-	<description>Pax Web is a OSGi Http Service based on Undertow.
-    Detailed information to be found at http://wiki.ops4j.org/confluence/x/AYAz.</description>
-
-	<properties>
-		<bundle.symbolicName>org.ops4j.pax.web.pax-web-undertow</bundle.symbolicName>
-		<bundle.namespace>org.ops4j.pax.web.service.undertow</bundle.namespace>
-		<sonar.jacoco.itReportPath>${project.basedir}/../target/jacoco-it.exec</sonar.jacoco.itReportPath>
-	</properties>
 
 	<build>
 		<plugins>
 			<plugin>
 				<groupId>org.apache.felix</groupId>
 				<artifactId>maven-bundle-plugin</artifactId>
+				<extensions>true</extensions>
 				<configuration>
 					<instructions>
-						<_dsannotations>*</_dsannotations>
-						<Bundle-SymbolicName>${bundle.symbolicName}</Bundle-SymbolicName>
+						<Bundle-Activator>org.ops4j.pax.web.service.undertow.internal.Activator</Bundle-Activator>
 						<Import-Package>
-							org.ops4j.pax.web.utils; version="${pax-web.osgi.version}",
-							org.ops4j.pax.web.service; version="${pax-web.osgi.version}",
-							org.ops4j.pax.web.service.spi.*; version="${pax-web.osgi.version}",
-							org.ops4j.pax.web.jsp; version="${pax-web.osgi.version}"; resolution:=optional,
-							org.apache.jasper.servlet; resolution:=optional,
-							javax.management.*; resolution:=optional,
-							javax.servlet.*; version="[2.3.0,4.0.0)",
-							javax.websocket.*; resolution:=optional,
-							io.undertow;version="[1.2,2)",
-							io.undertow.connector;version="[1.2,2)",
-							io.undertow.io;version="[1.2,2)",
-							io.undertow.security.idm;version="[1.2,2)",
-							io.undertow.server;version="[1.2,2)",
-							io.undertow.server.handlers;version="[1.2,2)",
-							io.undertow.server.handlers.resource;version="[1.2,2)",
-							io.undertow.servlet;version="[1.2,2)",
-							io.undertow.servlet.api;version="[1.2,2)",
-							io.undertow.servlet.handlers;version="[1.2,2)",
-							io.undertow.servlet.spec;version="[1.2,2)",
-							io.undertow.servlet.util;version="[1.2,2)",
- 							io.undertow.util;version="[1.2,2)",
-                                                        io.undertow.servlet.sse;version="[2.0,2.1)";resolution:=optional,
-							io.undertow.websockets.jsr;version="[1.2,2)";resolution:=optional,
-							io.undertow.websockets.jsr.annotated;version="[1.2,2)";resolution:=optional,
-							io.undertow.websockets.jsr.handshake;version="[1.2,2)";resolution:=optional,
-							io.undertow.websockets.jsr.util;version="[1.2,2)";resolution:=optional,
-							org.osgi.framework; version="[1.0.0,2.0.0)",
-							org.osgi.service.http; version="[1.0.0,2.0.0)",
-							org.osgi.service.packageadmin;resolution:=optional,
-							org.osgi.util.tracker;version="[1.3.0,2.0.0)",
-							org.slf4j; version="[1.5,2)",
-							javax.el; version="[2.1.0,4.0.0)";resolution:=optional,
-							org.apache.el; version="2.2"; resolution:=optional,
-							org.apache.el.lang; version="2.2"; resolution:=optional,
-							org.apache.el.parser; version="2.2"; resolution:=optional,
-							org.apache.el.stream; version="2.2"; resolution:=optional,
-							org.apache.el.util; version="2.2"; resolution:=optional,
-							*
+							<!-- ranges indicate Servlet API 3.1+ (JavaEE 7+) -->
+							javax.servlet;version="[3.1,5)",
+							javax.servlet.annotation;version="[3.1,5)",
+							javax.servlet.descriptor;version="[3.1,5)",
+							javax.servlet.http;version="[3.1,5)",
+
+							<!-- ranges indicate we can work with OSGi Core R6+ -->
+							org.osgi.framework;version="[1.8,2)",
+							org.osgi.framework.wiring;version="[1.2,2)",
+							org.osgi.util.tracker;version="[1.5,2)",
+
+							<!-- OSGi cmpn -->
+							org.osgi.service.http;version="[1.2,2)",
+							org.osgi.service.http.whiteboard;version="[1.1,2)",
+
+							<!-- from pax-web-api -->
+							org.ops4j.pax.web.service;version="${pax-web.osgi.version}",
+							org.ops4j.pax.web.utils;version="${pax-web.osgi.version}",
+							<!-- from pax-web-spi -->
+							org.ops4j.pax.web.service.spi.*;version="${pax-web.osgi.version}",
+
+							<!-- from pax-logging-api -->
+							org.slf4j;version="[1.7,2)",
+							org.jboss.logging,
+
+							<!-- undertow and xnio packages -->
+							org.xnio;version="[3.8,4)",
+							org.xnio.channels;version="[3.8,4)",
+							io.undertow;version="[2.2,3)",
+							io.undertow.connector;version="[2.2,3)",
+							io.undertow.io;version="[2.2,3)",
+							io.undertow.predicate;version="[2.2,3)",
+							io.undertow.protocols.ssl;version="[2.2,3)",
+							io.undertow.security.api;version="[2.2,3)",
+							io.undertow.security.idm;version="[2.2,3)",
+							io.undertow.server;version="[2.2,3)",
+							io.undertow.server.handlers;version="[2.2,3)",
+							io.undertow.server.handlers.accesslog;version="[2.2,3)",
+							io.undertow.server.handlers.builder;version="[2.2,3)",
+							io.undertow.server.handlers.cache;version="[2.2,3)",
+							io.undertow.server.handlers.encoding;version="[2.2,3)",
+							io.undertow.server.handlers.resource;version="[2.2,3)",
+							io.undertow.server.protocol.http;version="[2.2,3)",
+							io.undertow.server.protocol.http2;version="[2.2,3)",
+							io.undertow.server.session;version="[2.2,3)",
+							io.undertow.servlet;version="[2.2,3)",
+							io.undertow.servlet.api;version="[2.2,3)",
+							io.undertow.servlet.core;version="[2.2,3)",
+							io.undertow.servlet.handlers;version="[2.2,3)",
+							io.undertow.servlet.spec;version="[2.2,3)",
+							io.undertow.servlet.util;version="[2.2,3)",
+							io.undertow.util;version="[2.2,3)",
+
+							<!-- other -->
+							javax.annotation;version="[1.2,2)";resolution:=optional,
+							javax.net.ssl,
+							javax.security.auth,
+							javax.security.auth.callback,
+							javax.security.auth.login,
+							javax.xml.namespace,
+							javax.xml.parsers,
+							org.xml.sax,
+							org.xml.sax.helpers
 						</Import-Package>
-						<Private-Package>
-							!org.apache.commons.logging,
-							${bundle.namespace}.internal.*,
-							org.apache.commons.lang3.reflect,
-						</Private-Package>
 						<Provide-Capability>
-							osgi.service;objectClass=javax.servlet.ServletContext,
-							osgi.service;effective:=active;objectClass=org.ops4j.pax.web.service.spi.ServerController
+							osgi.service;effective:=active;objectClass:List&lt;String&gt;="org.ops4j.pax.web.service.spi.ServerControllerFactory"
 						</Provide-Capability>
-						<Embed-Dependency>*;
-							artifactId=!org.osgi.compendium;
-							scope=compile; type=!pom; inline=true</Embed-Dependency>
-						<Embed-Transitive>true</Embed-Transitive>
-						<_removeheaders>
-							Include-Resource,
-							Private-Package,
-							Embed-Dependency,
-							Embed-Transitive
-						</_removeheaders>
+						<Export-Package>
+							org.ops4j.pax.web.service.undertow,
+							org.ops4j.pax.web.service.undertow.configuration.model,
+
+							<!-- these packages are required for Undertow 2.2.x and XNIO 3.8.x -->
+							org.jboss.threads,
+							org.jboss.threads.management,
+							org.wildfly.client.config,
+							org.wildfly.common,
+							org.wildfly.common.context,
+							org.wildfly.common.cpu,
+							org.wildfly.common.function,
+							org.wildfly.common.net,
+							org.wildfly.common.ref
+						</Export-Package>
+						<Private-Package>
+							org.ops4j.pax.web.service.undertow.internal.*,
+						</Private-Package>
 					</instructions>
 				</configuration>
-				<executions>
-					<execution>
-						<id>bundle</id>
-						<goals>
-							<goal>bundle</goal>
-						</goals>
-					</execution>
-					<execution>
-						<id>baseline</id>
-						<goals>
-							<goal>baseline</goal>
-						</goals>
-					</execution>
-				</executions>
-			</plugin>
-			<plugin>
-				<artifactId>maven-compiler-plugin</artifactId>
-				<configuration>
-					<excludes>
-						<exclude>**/ServerConnectorWrapper.java</exclude>
-					</excludes>
-				</configuration>
-			</plugin>
-			<plugin>
-				<groupId>org.jacoco</groupId>
-				<artifactId>jacoco-maven-plugin</artifactId>
-
 			</plugin>
 		</plugins>
 	</build>
 
 	<dependencies>
 
-		<!-- Embeded dependencies (not transitive) -->
-		<dependency>
-			<groupId>org.ops4j.base</groupId>
-			<artifactId>ops4j-base-lang</artifactId>
-			<scope>compile</scope>
-			<optional>true</optional>
-		</dependency>
-		<dependency>
-			<groupId>org.ops4j.base</groupId>
-			<artifactId>ops4j-base-util-xml</artifactId>
-			<scope>compile</scope>
-		</dependency>
-		<dependency>
-			<groupId>org.ops4j.pax.swissbox</groupId>
-			<artifactId>pax-swissbox-optional-jcl</artifactId>
-			<scope>compile</scope>
-		</dependency>
-		<dependency>
-			<groupId>org.ops4j.pax.swissbox</groupId>
-			<artifactId>pax-swissbox-core</artifactId>
-			<scope>compile</scope>
-		</dependency>
-		<dependency>
-			<groupId>org.ops4j.pax.swissbox</groupId>
-			<artifactId>pax-swissbox-tracker</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>org.ops4j.pax.swissbox</groupId>
-			<artifactId>pax-swissbox-property</artifactId>
-		</dependency>
+		<!-- pax-web own artifacts -->
 
-		<dependency>
-			<groupId>org.apache.commons</groupId>
-    		<artifactId>commons-lang3</artifactId>
-		</dependency>
-
-		<!-- Provided dependencies (not transitive) -->
-
-		<dependency>
-			<groupId>org.osgi</groupId>
-			<artifactId>osgi.core</artifactId>
-			<scope>provided</scope>
-		</dependency>
-		<dependency>
-			<groupId>org.osgi</groupId>
-			<artifactId>osgi.cmpn</artifactId>
-			<scope>provided</scope>
-		</dependency>
-		<dependency>
-			<groupId>io.undertow</groupId>
-			<artifactId>undertow-servlet</artifactId>
-			<scope>provided</scope>
-		</dependency>
-		<dependency>
-			<groupId>io.undertow</groupId>
-			<artifactId>undertow-websockets-jsr</artifactId>
-			<scope>provided</scope>
-		</dependency>
-		<dependency>
-			<groupId>javax.websocket</groupId>
-			<artifactId>javax.websocket-api</artifactId>
-			<scope>provided</scope>
-		</dependency>
 		<dependency>
 			<groupId>org.ops4j.pax.web</groupId>
 			<artifactId>pax-web-api</artifactId>
@@ -218,68 +150,121 @@
 		</dependency>
 		<dependency>
 			<groupId>org.ops4j.pax.web</groupId>
-			<artifactId>pax-web-jsp</artifactId>
+			<artifactId>pax-web-runtime</artifactId>
 			<scope>provided</scope>
-			<exclusions>
-				<exclusion>
-					<groupId>org.apache.tomcat.embed</groupId>
-					<artifactId>tomcat-embed-jasper</artifactId>
-				</exclusion>
-			</exclusions>
-			<optional>true</optional>
+		</dependency>
+
+		<!-- OSGi -->
+
+		<dependency>
+			<groupId>org.osgi</groupId>
+			<artifactId>osgi.core</artifactId>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.osgi</groupId>
+			<artifactId>osgi.cmpn</artifactId>
+			<scope>provided</scope>
+		</dependency>
+
+		<!-- JavaEE -->
+
+		<dependency>
+			<groupId>jakarta.annotation</groupId>
+			<artifactId>jakarta.annotation-api</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>jakarta.servlet</groupId>
+			<artifactId>jakarta.servlet-api</artifactId>
+			<scope>provided</scope>
+		</dependency>
+
+		<!-- Undertow -->
+
+		<dependency>
+			<groupId>io.undertow</groupId>
+			<artifactId>undertow-core</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>io.undertow</groupId>
+			<artifactId>undertow-servlet</artifactId>
 		</dependency>
 
 		<dependency>
-			<groupId>org.apache.xbean</groupId>
-			<artifactId>xbean-finder</artifactId>
-			<scope>provided</scope>
+			<groupId>org.jboss.xnio</groupId>
+			<artifactId>xnio-api</artifactId>
 		</dependency>
-		
 		<dependency>
-			<groupId>${servlet.spec.groupId}</groupId>
-			<artifactId>${servlet.spec.artifactId}</artifactId>
+			<groupId>org.jboss.xnio</groupId>
+			<artifactId>xnio-nio</artifactId>
 		</dependency>
 
-		<!-- Test dependencies (not transitive) -->
 		<dependency>
-			<groupId>junit</groupId>
-			<artifactId>junit</artifactId>
+			<groupId>org.jboss.threads</groupId>
+			<artifactId>jboss-threads</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.wildfly.common</groupId>
+			<artifactId>wildfly-common</artifactId>
 		</dependency>
 		<dependency>
-			<groupId>org.easymock</groupId>
-			<artifactId>easymock</artifactId>
+			<groupId>org.wildfly.client</groupId>
+			<artifactId>wildfly-client-config</artifactId>
 		</dependency>
-		<dependency>
-			<groupId>org.easymock</groupId>
-			<artifactId>easymockclassextension</artifactId>
-		</dependency>
+
+		<!-- Logging -->
+
 		<dependency>
 			<groupId>org.slf4j</groupId>
 			<artifactId>slf4j-api</artifactId>
-			<type>jar</type>
 			<scope>provided</scope>
 		</dependency>
 		<dependency>
+			<groupId>org.slf4j</groupId>
+			<artifactId>jul-to-slf4j</artifactId>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.logging.log4j</groupId>
+			<artifactId>log4j-slf4j-impl</artifactId>
+			<scope>test</scope>
+		</dependency>
+
+		<!-- Other -->
+
+		<dependency>
+			<groupId>commons-io</groupId>
+			<artifactId>commons-io</artifactId>
+			<scope>test</scope>
+		</dependency>
+
+		<dependency>
+			<groupId>org.apache.httpcomponents.client5</groupId>
+			<artifactId>httpclient5</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.httpcomponents.core5</groupId>
+			<artifactId>httpcore5</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.httpcomponents.core5</groupId>
+			<artifactId>httpcore5-h2</artifactId>
+			<scope>test</scope>
+		</dependency>
+
+		<!-- Testing -->
+
+		<dependency>
+			<groupId>junit</groupId>
+			<artifactId>junit</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
 			<groupId>org.mockito</groupId>
-			<artifactId>mockito-all</artifactId>
-			<version>1.9.5</version>
-			<scope>test</scope>
-		</dependency>
-		<dependency>
-			<groupId>org.apache.commons</groupId>
-			<artifactId>commons-collections4</artifactId>
-			<scope>test</scope>
-		</dependency>
-		<dependency>
-			<groupId>ch.qos.logback</groupId>
-			<artifactId>logback-core</artifactId>
-			<version>1.0.6</version>
-			<scope>test</scope>
-		</dependency>
-		<dependency>
-			<groupId>ch.qos.logback</groupId>
-			<artifactId>logback-classic</artifactId>
-			<version>1.0.6</version>
+			<artifactId>mockito-core</artifactId>
 			<scope>test</scope>
 		</dependency>
 

@@ -1,0 +1,41 @@
+<!--
+
+    Copyright 2021 OPS4J.
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+-->
+<web-fragment xmlns="http://xmlns.jcp.org/xml/ns/javaee" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://xmlns.jcp.org/xml/ns/javaee http://xmlns.jcp.org/xml/ns/javaee/web-fragment_4_0.xsd"
+    version="4.0">
+
+	<name>TheWabFragmentFragment</name>
+
+	<listener>
+		<listener-class>org.ops4j.pax.web.itest.server.support.war.fragment.JustListener</listener-class>
+	</listener>
+
+	<filter>
+		<filter-name>filter-from-fragment</filter-name>
+		<filter-class>org.ops4j.pax.web.itest.server.support.war.fragment.DeclaredFilter</filter-class>
+		<init-param>
+			<param-name>sign</param-name>
+			<param-value>filtered</param-value>
+		</init-param>
+	</filter>
+	<filter-mapping>
+		<filter-name>filter-from-fragment</filter-name>
+		<url-pattern>/as1/should-be-filtered/*</url-pattern>
+	</filter-mapping>
+
+</web-fragment>

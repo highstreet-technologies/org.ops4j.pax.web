@@ -15,19 +15,20 @@
  */
 package org.ops4j.pax.web.itest.karaf;
 
+import javax.management.MBeanServerConnection;
+import javax.management.ObjectName;
+import javax.management.remote.JMXConnector;
+
 import org.junit.Test;
-import org.junit.runner.RunWith;
 import org.ops4j.pax.exam.Configuration;
 import org.ops4j.pax.exam.Option;
-import org.ops4j.pax.exam.junit.PaxExam;
 
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertNotNull;
 
 /**
  * @author achim
  */
-@RunWith(PaxExam.class)
-public class FeaturesUndertowKarafTest extends KarafBaseTest {
+public class FeaturesUndertowKarafTest extends FeaturesBaseKarafTest {
 
 	@Configuration
 	public Option[] config() {
@@ -35,14 +36,13 @@ public class FeaturesUndertowKarafTest extends KarafBaseTest {
 	}
 
 	@Test
-	public void test() throws Exception {
-
-		//this is needed since the test is a bit to fast :)
-		Thread.sleep(2000);
-
-		assertTrue(featuresService.isInstalled(featuresService
-				.getFeature("pax-http-undertow")));
-
+	public void testJmx() throws Exception {
+		try (JMXConnector connector = this.getJMXConnector()) {
+			MBeanServerConnection connection = connector.getMBeanServerConnection();
+			ObjectName name = new ObjectName("org.xnio:type=Xnio,provider=\"nio\",worker=\"XNIO-default\"");
+			Object handlers = connection.getAttribute(name, "CoreWorkerPoolSize");
+			assertNotNull(handlers);
+		}
 	}
 
 }

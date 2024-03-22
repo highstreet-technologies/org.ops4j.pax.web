@@ -32,12 +32,13 @@ import javax.servlet.http.HttpSessionBindingListener;
 import javax.servlet.http.HttpSessionIdListener;
 import javax.servlet.http.HttpSessionListener;
 
-import org.ops4j.pax.web.extender.whiteboard.internal.ExtenderContext;
-import org.ops4j.pax.web.extender.whiteboard.internal.element.ListenerWebElement;
-import org.ops4j.pax.web.extender.whiteboard.internal.util.ServicePropertiesUtils;
-import org.ops4j.pax.web.extender.whiteboard.runtime.DefaultListenerMapping;
+import org.ops4j.pax.web.extender.whiteboard.internal.WhiteboardExtenderContext;
+import org.ops4j.pax.web.service.spi.model.elements.EventListenerModel;
+import org.ops4j.pax.web.service.spi.model.events.EventListenerEventData;
+import org.ops4j.pax.web.service.spi.util.Utils;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.ServiceReference;
+import org.osgi.service.http.whiteboard.HttpWhiteboardConstants;
 import org.osgi.util.tracker.ServiceTracker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -48,48 +49,60 @@ import org.slf4j.LoggerFactory;
  * @author Alin Dreghiciu
  * @since 0.4.0, April 05, 2008
  */
-public class ListenerTracker extends AbstractTracker<EventListener, ListenerWebElement> {
+public class ListenerTracker extends AbstractElementTracker<EventListener, EventListener, EventListenerEventData, EventListenerModel> {
 
-	/**
-	 * Logger.
-	 */
-	private static final Logger LOG = LoggerFactory.getLogger(ListenerTracker.class);
+	public static final Logger LOG = LoggerFactory.getLogger(ListenerTracker.class);
 
-	/**
-	 * Constructor.
-	 *
-	 * @param extenderContext
-	 *            extender context; cannot be null
-	 * @param bundleContext
-	 *            extender bundle context; cannot be null
-	 */
-	private ListenerTracker(final ExtenderContext extenderContext, final BundleContext bundleContext) {
-		super(extenderContext, bundleContext);
+	private static final Class<?>[] SUPPORTED_LISTENER_CLASSES = new Class[] {
+			// OSGi CMPN R7 Whiteboard Service
+			ServletContextListener.class,
+			ServletContextAttributeListener.class,
+			ServletRequestListener.class,
+			ServletRequestAttributeListener.class,
+			HttpSessionAttributeListener.class,
+			HttpSessionIdListener.class,
+			HttpSessionListener.class,
+			// Pax Web additions
+			HttpSessionActivationListener.class,
+			HttpSessionBindingListener.class,
+			AsyncListener.class,
+			ReadListener.class,
+			WriteListener.class
+	};
+
+	private ListenerTracker(final WhiteboardExtenderContext whiteboardExtenderContext, final BundleContext bundleContext) {
+		super(whiteboardExtenderContext, bundleContext);
 	}
 
-	@SuppressWarnings("unchecked")
-	public static ServiceTracker<EventListener, ListenerWebElement> createTracker(final ExtenderContext extenderContext,
+	public static ServiceTracker<EventListener, EventListenerModel> createTracker(final WhiteboardExtenderContext whiteboardExtenderContext,
 			final BundleContext bundleContext) {
-		return new ListenerTracker(extenderContext, bundleContext).create(EventListener.class,
-				ServletContextListener.class, ServletContextAttributeListener.class, ServletRequestListener.class,
-				ServletRequestAttributeListener.class, HttpSessionListener.class, HttpSessionBindingListener.class,
-				HttpSessionAttributeListener.class, HttpSessionActivationListener.class, AsyncListener.class,
-				ReadListener.class, WriteListener.class, HttpSessionIdListener.class);
+
+		StringBuilder classes = new StringBuilder();
+		for (Class<?> c : SUPPORTED_LISTENER_CLASSES) {
+			classes.append("(objectClass=").append(c.getName()).append(")");
+		}
+		String filter = String.format("(&(|%s)(%s=*))", classes.toString(), HttpWhiteboardConstants.HTTP_WHITEBOARD_LISTENER);
+		return new ListenerTracker(whiteboardExtenderContext, bundleContext).create(filter);
 	}
 
-	/**
-	 * @see AbstractTracker#createWebElement(ServiceReference, Object)
-	 */
 	@Override
-	ListenerWebElement createWebElement(final ServiceReference<EventListener> serviceReference,
-			final EventListener published) {
+	protected EventListenerModel createElementModel(ServiceReference<EventListener> serviceReference, Integer rank, Long serviceId) {
+		Boolean isListener = Utils.getBooleanProperty(serviceReference, HttpWhiteboardConstants.HTTP_WHITEBOARD_LISTENER);
+		if (isListener == null || !isListener) {
+			// 140.7 Registering Listeners:
+			// Events are sent to listeners registered in the Service Registry with the osgi.http.whiteboard.listener
+			// service property set to true, independent of case.
+			LOG.debug("Listener service reference doesn't have a property {}=true",
+					HttpWhiteboardConstants.HTTP_WHITEBOARD_LISTENER);
+			return null;
+		}
 
-		String httpContextId = ServicePropertiesUtils.extractHttpContextId(serviceReference);
-
-		final DefaultListenerMapping mapping = new DefaultListenerMapping();
-		mapping.setHttpContextId(httpContextId);
-		mapping.setListener(published);
-		return new ListenerWebElement<>(serviceReference, mapping);
+		EventListenerModel model = new EventListenerModel();
+		model.setRegisteringBundle(serviceReference.getBundle());
+		model.setElementReference(serviceReference);
+		model.setServiceRank(rank);
+		model.setServiceId(serviceId);
+		return model;
 	}
 
 }

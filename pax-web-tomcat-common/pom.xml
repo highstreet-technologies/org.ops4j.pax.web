@@ -1,0 +1,184 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+    Copyright 2021 OPS4J.
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+
+	<modelVersion>4.0.0</modelVersion>
+
+	<parent>
+		<groupId>org.ops4j.pax</groupId>
+		<artifactId>web</artifactId>
+		<version>8.0.15</version>
+		<relativePath>../pom.xml</relativePath>
+	</parent>
+
+	<groupId>org.ops4j.pax.web</groupId>
+	<artifactId>pax-web-tomcat-common</artifactId>
+	<packaging>bundle</packaging>
+
+	<name>OPS4J Pax Web - Tomcat Common</name>
+
+	<description>Pax Web bundle to export packages required by pax-web-jsp and pax-web-tomcat.</description>
+
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>org.apache.felix</groupId>
+				<artifactId>maven-bundle-plugin</artifactId>
+				<extensions>true</extensions>
+				<configuration>
+					<instructions>
+						<DynamicImport-Package>
+							javax.servlet.jsp,
+							javax.servlet.jsp.*
+						</DynamicImport-Package>
+						<Import-Package>
+							<!-- ranges indicate Servlet API 3.1+ (JavaEE 7+) -->
+							javax.servlet;version="[3.1,5)",
+							javax.servlet.annotation;version="[3.1,5)",
+							javax.servlet.descriptor;version="[3.1,5)",
+
+							<!-- from pax-api -->
+							org.ops4j.pax.web.service;version="${pax-web.osgi.version}",
+
+							<!-- from pax-web-jsp -->
+<!--							javax.servlet.jsp;version="2.3";resolution:=optional,-->
+<!--							javax.servlet.jsp.el;version="2.3";resolution:=optional,-->
+<!--							javax.servlet.jsp.tagext;version="2.3";resolution:=optional,-->
+
+							<!-- from pax-logging-api -->
+							org.apache.juli.logging,
+
+							<!-- JavaSE -->
+							javax.management,
+							javax.naming,
+							javax.naming.spi,
+							javax.management.modelmbean,
+							javax.net.ssl,
+							javax.xml.parsers,
+							org.xml.sax,
+							org.xml.sax.ext,
+							org.xml.sax.helpers,
+
+							<!-- Optional, but used packages -->
+							org.graalvm.nativeimage;resolution:=optional,
+							sun.misc;resolution:=optional
+						</Import-Package>
+						<!--
+							Without empty Private-Package, bndlib warns:
+							The JAR is empty: The instructions for the JAR named
+							org.ops4j.pax.web.pax-web-tomcat-common did not cause any content to be included,
+							this is likely wrong
+						-->
+						<Private-Package />
+						<Export-Package>
+							<!--
+								Carefuly export packages from tomcat-embed-core and explain the actual (non "embed")
+								Tomcat library that originally contains given package
+							-->
+
+							<!-- tomcat-api -->
+							org.apache.tomcat;version="${dependency.org.apache.tomcat}",
+
+							<!-- tomcat-util -->
+							org.apache.tomcat.util;version="${dependency.org.apache.tomcat}",
+							org.apache.tomcat.util.buf;version="${dependency.org.apache.tomcat}",
+							org.apache.tomcat.util.codec.binary;version="${dependency.org.apache.tomcat}",
+							org.apache.tomcat.util.collections;version="${dependency.org.apache.tomcat}",
+							org.apache.tomcat.util.compat;version="${dependency.org.apache.tomcat}",
+							org.apache.tomcat.util.file;version="${dependency.org.apache.tomcat}",
+							org.apache.tomcat.util.json;version="${dependency.org.apache.tomcat}",
+							org.apache.tomcat.util.res;version="${dependency.org.apache.tomcat}",
+							org.apache.tomcat.util.security;version="${dependency.org.apache.tomcat}",
+							org.apache.tomcat.util.threads;version="${dependency.org.apache.tomcat}",
+							org.apache.tomcat.util.threads.res;version="${dependency.org.apache.tomcat}",
+
+							<!-- tomcat-util-scan -->
+							org.apache.tomcat.util.descriptor;version="${dependency.org.apache.tomcat}";-split-package:=merge-first,
+							org.apache.tomcat.util.descriptor.tagplugin;version="${dependency.org.apache.tomcat}";-split-package:=merge-first,
+							org.apache.tomcat.util.descriptor.tld;version="${dependency.org.apache.tomcat}",
+							org.apache.tomcat.util.descriptor.web;version="${dependency.org.apache.tomcat}";-split-package:=merge-first,
+							org.apache.tomcat.util.digester;version="${dependency.org.apache.tomcat}";-split-package:=merge-first,
+							org.apache.tomcat.util.scan;version="${dependency.org.apache.tomcat}";-split-package:=merge-first,
+
+							<!-- tomcat-embed-core - unfortunately these packages have to be here -->
+							org.apache.tomcat.util.bcel;version="${dependency.org.apache.tomcat}",
+							org.apache.tomcat.util.bcel.classfile;version="${dependency.org.apache.tomcat}",
+							org.apache.tomcat.util.modeler;version="${dependency.org.apache.tomcat}",
+							org.apache.tomcat.util.modeler.modules;version="${dependency.org.apache.tomcat}",
+
+							<!-- tomcat-juli (don't export org.apache.tomcat.juli.logging, which comes from pax-logging-api -->
+							org.apache.juli;version="${dependency.org.apache.tomcat}"
+						</Export-Package>
+						<_nouses>true</_nouses>
+						<_contract>!*</_contract>
+					</instructions>
+				</configuration>
+			</plugin>
+		</plugins>
+	</build>
+
+	<dependencies>
+
+		<!-- pax-web own artifacts -->
+
+		<dependency>
+			<groupId>org.ops4j.pax.web</groupId>
+			<artifactId>pax-web-api</artifactId>
+			<scope>provided</scope>
+		</dependency>
+
+		<!-- Tomcat -->
+
+		<dependency>
+			<groupId>org.apache.tomcat.embed</groupId>
+			<artifactId>tomcat-embed-core</artifactId>
+			<!--
+				runtime scope means: not required for compilation, see as transitive dependency
+				with proper Export-Package, we control what actually is provided at runtime
+			-->
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.tomcat</groupId>
+			<!--
+				tomcat-embed-core doesn't contain org.apache.tomcat.util.descriptor.tld package, it's moved
+				to tomcat-embed-jasper: https://github.com/apache/tomcat/commit/96e1d96e20defbc0825771c6ce7bee32e54d4c8c
+			-->
+			<artifactId>tomcat-util-scan</artifactId>
+			<scope>provided</scope>
+			<exclusions>
+				<!-- exclusions to get rid of "Split package, multiple jars provide the same package" warning -->
+				<exclusion>
+					<groupId>org.apache.tomcat</groupId>
+					<artifactId>tomcat-api</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>org.apache.tomcat</groupId>
+					<artifactId>tomcat-juli</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>org.apache.tomcat</groupId>
+					<artifactId>tomcat-util</artifactId>
+				</exclusion>
+			</exclusions>
+		</dependency>
+
+	</dependencies>
+
+</project>
