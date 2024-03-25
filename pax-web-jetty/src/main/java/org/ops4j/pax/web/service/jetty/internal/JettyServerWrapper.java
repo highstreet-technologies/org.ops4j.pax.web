@@ -809,6 +809,10 @@ class JettyServerWrapper implements BatchVisitor {
 				sessions.getSessionCookieConfig().setSecure(defaultSessionCookieConfig.isSecure());
 				sessions.getSessionCookieConfig().setComment(defaultSessionCookieConfig.getComment());
 
+				if ("disable".equalsIgnoreCase(defaultSessionCookieConfig.getComment())) {
+					LOG.info("session cookies are now disabled");
+					sessions.setUsingCookies(false);
+				}
 				// #1727 - set comment first, because later Jetty can use it to (re)configure same site attribute
 				String sameSiteValue = sc.getSessionCookieSameSite();
 				if (sameSiteValue != null && !"unset".equalsIgnoreCase(sameSiteValue)) {
@@ -2185,6 +2189,10 @@ class JettyServerWrapper implements BatchVisitor {
 					sessionHandler.getSessionCookieConfig().setMaxAge(scc.getMaxAge());
 					sessionHandler.getSessionCookieConfig().setHttpOnly(scc.isHttpOnly());
 					sessionHandler.getSessionCookieConfig().setSecure(scc.isSecure());
+					if ("disable".equalsIgnoreCase(defaultSessionCookieConfig.getComment())) {
+						LOG.info("session cookies are now disabled2");
+						sessionHandler.setUsingCookies(false);
+					}
 					// #1727 - set comment first, because later Jetty can use it to (re)configure same site attribute
 					String comment = scc.getComment();
 					sessionHandler.getSessionCookieConfig().setComment(comment);
