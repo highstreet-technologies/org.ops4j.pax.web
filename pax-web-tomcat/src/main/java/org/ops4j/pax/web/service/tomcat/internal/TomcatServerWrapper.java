@@ -52,6 +52,7 @@ import org.apache.catalina.Executor;
 import org.apache.catalina.Host;
 import org.apache.catalina.LifecycleListener;
 import org.apache.catalina.LifecycleState;
+import org.apache.catalina.Server;
 import org.apache.catalina.Service;
 import org.apache.catalina.Valve;
 import org.apache.catalina.connector.Connector;
@@ -64,6 +65,7 @@ import org.apache.catalina.core.StandardService;
 import org.apache.catalina.loader.ParallelWebappClassLoader;
 import org.apache.catalina.loader.WebappLoader;
 import org.apache.catalina.session.StandardManager;
+import org.apache.catalina.util.ToStringUtil;
 import org.apache.catalina.valves.AccessLogValve;
 import org.apache.catalina.webresources.TomcatURLStreamHandlerFactory;
 import org.apache.tomcat.util.descriptor.web.ErrorPage;
@@ -134,8 +136,8 @@ import org.xml.sax.SAXException;
 
 /**
  * <p>A <em>wrapper</em> or <em>holder</em> of actual Tomcat server. This class perform two kinds of tasks:<ul>
- *     <li>controls the state of Tomcat by configuring, starting and stopping it</li>
- *     <li>translates model changes into registration of Tomcat-specific contexts, holders and handlers</li>
+ * <li>controls the state of Tomcat by configuring, starting and stopping it</li>
+ * <li>translates model changes into registration of Tomcat-specific contexts, holders and handlers</li>
  * </ul></p>
  *
  * <p>This class after Pax Web 8 is modelled after similar class for Jetty (and later - Undertow)</p>
@@ -149,24 +151,34 @@ class TomcatServerWrapper implements BatchVisitor {
 
 	private static final String TOMCAT_CATALINA_NAME = "Catalina";
 
-	/** An <em>entry</em> to OSGi runtime to lookup other bundles if needed (to get their ClassLoader) */
+	/**
+	 * An <em>entry</em> to OSGi runtime to lookup other bundles if needed (to get their ClassLoader)
+	 */
 	private final Bundle paxWebTomcatBundle;
-	/** Outside of OSGi, let's use passed ClassLoader */
+	/**
+	 * Outside of OSGi, let's use passed ClassLoader
+	 */
 	private final ClassLoader classLoader;
 
 	/**
 	 * Actual instance of {@link org.apache.catalina.core.StandardServer}. In Jetty we had extended class. Here
 	 * we hold direct instance, because it is final.
 	 */
-	private StandardServer server;
+	private Server server;
 
-	/** Tomcat's {@link Service} */
+	/**
+	 * Tomcat's {@link Service}
+	 */
 	private StandardService service;
 
-	/** Tomcat's {@link Engine} */
+	/**
+	 * Tomcat's {@link Engine}
+	 */
 	private StandardEngine engine;
 
-	/** Tomcat's default {@link Host} */
+	/**
+	 * Tomcat's default {@link Host}
+	 */
 	private Host defaultHost;
 
 	/**
@@ -175,7 +187,9 @@ class TomcatServerWrapper implements BatchVisitor {
 	 */
 	private final Map<String, Host> hosts = new HashMap<>();
 
-	/** Server's thread pool */
+	/**
+	 * Server's thread pool
+	 */
 	private Executor serverExecutor;
 
 	private final TomcatFactory tomcatFactory;
@@ -195,7 +209,9 @@ class TomcatServerWrapper implements BatchVisitor {
 	 */
 	private final Map<String, List<ElementModel<?, ?>>> delayedRemovals = new HashMap<>();
 
-	/** Single map of context path to {@link Context} for fast access */
+	/**
+	 * Single map of context path to {@link Context} for fast access
+	 */
 	private final Map<String, PaxWebStandardContext> contextHandlers = new HashMap<>();
 
 	/**
@@ -219,10 +235,14 @@ class TomcatServerWrapper implements BatchVisitor {
 	 */
 	private final Map<String, TreeSet<OsgiContextModel>> osgiContextModels = new HashMap<>();
 
-	/** Even if Tomcat manages SCIs, we'll manage them here instead - to be able to remove them when needed. */
+	/**
+	 * Even if Tomcat manages SCIs, we'll manage them here instead - to be able to remove them when needed.
+	 */
 	private final Map<String, TreeSet<SCIWrapper>> initializers = new HashMap<>();
 
-	/** Keep dynamic configuration and use it during startup only. */
+	/**
+	 * Keep dynamic configuration and use it during startup only.
+	 */
 	private final Map<String, DynamicRegistrations> dynamicRegistrations = new HashMap<>();
 
 	/**
@@ -231,7 +251,9 @@ class TomcatServerWrapper implements BatchVisitor {
 	 */
 	private final Configuration configuration;
 
-	/** Servlet to use when no servlet is mapped - to ensure that preprocessors and filters are run correctly. */
+	/**
+	 * Servlet to use when no servlet is mapped - to ensure that preprocessors and filters are run correctly.
+	 */
 	private final Default404Servlet default404Servlet = new Default404Servlet();
 
 	private SessionCookieConfig defaultSessionCookieConfig;
@@ -329,6 +351,9 @@ class TomcatServerWrapper implements BatchVisitor {
 		this.service = service;
 		this.engine = engine;
 		this.defaultHost = host;
+
+		// to load org.apache.catalina.util.ToStringUtil class - needed when stopping the bundle
+		LOG.info("Created {}", ToStringUtil.toString(this, this.engine));
 	}
 
 	/**
@@ -424,7 +449,7 @@ class TomcatServerWrapper implements BatchVisitor {
 			// Jetty, Tomcat and Undertow.
 
 			// <Server>
-			server = (StandardServer) holder.getServer();
+			server = holder.getServer();
 
 			// <Server>/<Service>
 			if (server.findServices().length == 0) {
@@ -649,6 +674,7 @@ class TomcatServerWrapper implements BatchVisitor {
 
 	/**
 	 * Simply start Tomcat server
+	 *
 	 * @throws Exception
 	 */
 	public void start() throws Exception {
@@ -685,6 +711,7 @@ class TomcatServerWrapper implements BatchVisitor {
 
 	/**
 	 * If state allows, this methods returns currently configured/started addresses of the listeners.
+	 *
 	 * @param useLocalPort
 	 * @return
 	 */
@@ -1018,8 +1045,8 @@ class TomcatServerWrapper implements BatchVisitor {
 					}
 				}
 
-				// and the highest ranked context should be registered as OSGi service (if it wasn't registered)
-				highestRankedContext.register();
+//				// and the highest ranked context should be registered as OSGi service (if it wasn't registered)
+//				highestRankedContext.register();
 			}
 
 			if (hasStopped) {
@@ -1455,7 +1482,7 @@ class TomcatServerWrapper implements BatchVisitor {
 				if (eventListener instanceof ServletContextAttributeListener) {
 					// add it to accessible list to fire per-OsgiContext attribute changes
 					OsgiServletContext c = osgiServletContexts.get(context);
-					c.addServletContextAttributeListener((ServletContextAttributeListener)eventListener);
+					c.addServletContextAttributeListener((ServletContextAttributeListener) eventListener);
 				}
 				if (eventListener instanceof HttpSessionAttributeListener) {
 					// we have to store it separately to propagate OsgiHttpSession specific events
@@ -1517,7 +1544,7 @@ class TomcatServerWrapper implements BatchVisitor {
 						// remove it from per-OsgiContext list
 						OsgiServletContext c = osgiServletContexts.get(context);
 						if (c != null) {
-							c.removeServletContextAttributeListener((ServletContextAttributeListener)eventListener);
+							c.removeServletContextAttributeListener((ServletContextAttributeListener) eventListener);
 						}
 					}
 					if (eventListener instanceof HttpSessionAttributeListener) {
@@ -1697,7 +1724,7 @@ class TomcatServerWrapper implements BatchVisitor {
 			contextModels.forEach((context) -> {
 				String path = context.getContextPath();
 				PaxWebStandardContext ctx = contextHandlers.get(context.getContextPath());
-				if (ctx.isStarted()) {
+				if (ctx != null && ctx.isStarted()) {
 					// we have to stop it. This operation should follow ClearDynamicRegistrationsChange that
 					// clears possible dynamic registrations
 					// also this operation is always followed by active web element registration (servlet or websocket)
@@ -1811,6 +1838,9 @@ class TomcatServerWrapper implements BatchVisitor {
 
 		// there should already be a ServletContextHandler
 		PaxWebStandardContext ctx = contextHandlers.get(contextPath);
+		if (ctx == null) {
+			return;
+		}
 
 		// we can safely stop the context
 		if (ctx.isStarted()) {
@@ -1822,7 +1852,7 @@ class TomcatServerWrapper implements BatchVisitor {
 			}
 		}
 
-		final int[] removed = { 0 };
+		final int[] removed = {0};
 
 		// servlets
 		Map<ServletModel, Boolean> toRemove = new HashMap<>();
@@ -1962,8 +1992,13 @@ class TomcatServerWrapper implements BatchVisitor {
 		if (change.getKind() == OpCode.ADD) {
 			LOG.info("Adding security configuration to {}", ocm);
 			// just operate on the same OsgiContextModel that comes with the change
-			// even if it's not highest ranked
-			ocm.getSecurityConfiguration().setLoginConfig(loginConfigModel);
+			// even if it's not highest ranked - it also means we don't have to process the configuration
+			// in ServiceModel visitor
+			if (loginConfigModel != null) {
+				// null is an indication that we're adding security constraints using HttpService approach
+				// after previously adding LoginConfig
+				ocm.getSecurityConfiguration().setLoginConfig(loginConfigModel);
+			}
 			ocm.getSecurityConfiguration().getSecurityRoles().addAll(securityRoles);
 			ocm.getSecurityConfiguration().getSecurityConstraints().addAll(securityConstraints);
 
@@ -1975,14 +2010,26 @@ class TomcatServerWrapper implements BatchVisitor {
 					.put(ocm, ocm.getSecurityConfiguration());
 		} else {
 			LOG.info("Removing security configuration from {}", ocm);
-			ocm.getSecurityConfiguration().setLoginConfig(null);
-			securityRoles.forEach(ocm.getSecurityConfiguration().getSecurityRoles()::remove);
-			securityConstraints.forEach(sc -> {
-				ocm.getSecurityConfiguration().getSecurityConstraints()
-						.removeIf(scm -> scm.getName().equals(sc.getName()));
-			});
-			TreeMap<OsgiContextModel, SecurityConfigurationModel> constraints = contextSecurityConstraints.get(ocm.getContextPath());
-			constraints.remove(ocm);
+			if (!ocm.hasDirectHttpContextInstance() || loginConfigModel != null) {
+				// non-null LoginConfigModel for HttpService based security configuration means
+				// that we're removing only login configuration
+				ocm.getSecurityConfiguration().setLoginConfig(null);
+			}
+			if (ocm.hasDirectHttpContextInstance() && loginConfigModel == null) {
+				// null LoginConfigModel for HttpService based security configuration means
+				// that we clear ALL security constraints and roles
+				ocm.getSecurityConfiguration().getSecurityRoles().clear();
+				ocm.getSecurityConfiguration().getSecurityConstraints().clear();
+			} else {
+				// this is the Whiteboard/WAB/HttpContextProcessing case
+				securityRoles.forEach(ocm.getSecurityConfiguration().getSecurityRoles()::remove);
+				securityConstraints.forEach(sc -> {
+					ocm.getSecurityConfiguration().getSecurityConstraints()
+							.removeIf(scm -> scm.getName().equals(sc.getName()));
+				});
+				TreeMap<OsgiContextModel, SecurityConfigurationModel> constraints = contextSecurityConstraints.get(ocm.getContextPath());
+				constraints.remove(ocm);
+			}
 		}
 	}
 
@@ -1993,11 +2040,12 @@ class TomcatServerWrapper implements BatchVisitor {
 	 * <p>This method is always (should be) called withing the "configuration thread" of Pax Web Runtime, because
 	 * it's called in visit() methods for servlets (including resources) and filters, so we can safely access
 	 * {@link org.ops4j.pax.web.service.spi.model.ServerModel}.</p>
+	 *
 	 * @param context
 	 */
 	private void ensureServletContextStarted(PaxWebStandardContext context) {
 		String contextPath = context == null || context.getPath().equals("") ? "/" : context.getPath();
-		if (context == null || context.isStarted() || pendingTransaction(contextPath)) {
+		if (context == null || context.isStarted() || context.getState() == LifecycleState.DESTROYED || pendingTransaction(contextPath)) {
 			return;
 		}
 		try {
@@ -2016,12 +2064,18 @@ class TomcatServerWrapper implements BatchVisitor {
 			// internally calls org.apache.catalina.core.StandardContext.getLoader().getClassLoader()
 			// here's everything done manually/explicitly
 			WebappLoader tomcatLoader = new WebappLoader();
-			tomcatLoader.setLoaderInstance(new ParallelWebappClassLoader(highestRankedContext.getClassLoader()) {
-				@Override
-				protected void clearReferences() {
-					// skip, because we're managing "deployments" differently
-				}
-			});
+//			ParallelWebappClassLoader loaderInstance = new ParallelWebappClassLoader(highestRankedContext.getClassLoader()) {
+//				@Override
+//				protected void clearReferences() {
+//					// skip, because we're managing "deployments" differently
+//					super.clearReferences();
+//				}
+//			};
+			ParallelWebappClassLoader loaderInstance = new ParallelWebappClassLoader(highestRankedContext.getClassLoader());
+			loaderInstance.setClearReferencesObjectStreamClassCaches(false);
+			loaderInstance.setClearReferencesRmiTargets(false);
+			loaderInstance.setClearReferencesThreadLocals(false);
+			tomcatLoader.setLoaderInstance(loaderInstance);
 			context.setParentClassLoader(highestRankedContext.getClassLoader());
 			context.setLoader(tomcatLoader);
 			File workDir = (File) highestRankedContext.getAttribute(ServletContext.TEMPDIR);
@@ -2029,6 +2083,17 @@ class TomcatServerWrapper implements BatchVisitor {
 				workDir = configuration.server().getTemporaryDirectory();
 			}
 			context.setWorkDir(workDir.getAbsolutePath());
+
+			// copy contexts parameters - from all contexts
+			for (String p : context.findParameters()) {
+				context.removeParameter(p);
+			}
+			this.osgiContextModels.get(contextPath).forEach(ocm -> ocm.getContextParams()
+					.forEach((k, v) -> {
+						if (context.findParameter(k) == null) {
+							context.addParameter(k, v);
+						}
+					}));
 
 			context.setOsgiServletContext(null);
 			ServletContext realContext = context.getServletContext();
@@ -2104,6 +2169,10 @@ class TomcatServerWrapper implements BatchVisitor {
 			// swap dynamic to normal context
 			dynamicContext.rememberAttributesFromSCIs();
 			context.setOsgiServletContext(highestRankedContext);
+
+			// only now, according to https://docs.osgi.org/specification/osgi.cmpn/7.0.0/service.war.html#d0e100694
+			// register the servlet context
+			highestRankedContext.register();
 		} catch (Exception e) {
 			LOG.error(e.getMessage(), e);
 		}

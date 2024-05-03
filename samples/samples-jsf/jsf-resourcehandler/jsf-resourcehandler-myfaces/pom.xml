@@ -23,7 +23,7 @@
 	<parent>
 		<groupId>org.ops4j.pax.web.samples</groupId>
 		<artifactId>jsf-resourcehandler</artifactId>
-		<version>8.0.15</version>
+		<version>8.0.22</version>
 		<relativePath>../pom.xml</relativePath>
 	</parent>
 
@@ -46,6 +46,9 @@
 							org.ops4j.pax.web.resources.jsf,
 							javax.faces.webapp
 						</Import-Package>
+						<Require-Bundle>
+							org.apache.myfaces.core.impl
+						</Require-Bundle>
 						<_wab>src/main/webapp</_wab>
 						<Web-ContextPath>/osgi-resourcehandler-myfaces</Web-ContextPath>
 					</instructions>

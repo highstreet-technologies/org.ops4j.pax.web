@@ -23,7 +23,7 @@
 	<parent>
 		<groupId>org.ops4j.pax</groupId>
 		<artifactId>web</artifactId>
-		<version>8.0.15</version>
+		<version>8.0.22</version>
 		<relativePath>../pom.xml</relativePath>
 	</parent>
 
@@ -43,6 +43,7 @@
 		<module>pax-web-itest-jsp</module>
 		<module>pax-web-itest-container</module>
 		<module>pax-web-itest-karaf</module>
+		<module>pax-web-itest-keycloak</module>
 	</modules>
 
 	<profiles>
@@ -112,6 +113,12 @@
 					<scope>test</scope>
 				</dependency>
 			</dependencies>
+		</profile>
+		<profile>
+			<id>tck</id>
+			<modules>
+				<module>pax-web-tck</module>
+			</modules>
 		</profile>
 	</profiles>
 

@@ -786,6 +786,11 @@ public class WarExtenderContext implements WebContainerListener, ReportViewPlugi
 					return;
 				}
 
+				List<Bundle> awaiting = webApplicationQueue.get(webApp.getContextPath());
+				if (awaiting != null) {
+					awaiting.remove(bundle);
+				}
+
 				// Pax Web before 8 interacted here with dependency manager in order to tell the WebApp to unregister
 				// a WebAppDependencyHolder registration. But we're handling the lifecycle in different way now.
 				webApp.stop();
@@ -838,6 +843,8 @@ public class WarExtenderContext implements WebContainerListener, ReportViewPlugi
 				if (webApplicationQueue.containsKey(contextPath)) {
 					// in case it was awaiting the allocation
 					webApplicationQueue.get(contextPath).remove(wab);
+				} else {
+					return;
 				}
 
 				lock.lock();
@@ -849,8 +856,8 @@ public class WarExtenderContext implements WebContainerListener, ReportViewPlugi
 							// (at least attempted to be deployed)
 							BundleWebApplication app = webApplications.get(awaitingWab);
 							LOG.info("Redeploying {}, because {} is now available", app, contextPath);
-							app.deploy();
 							it.remove();
+							app.deploy();
 							break;
 						}
 					}

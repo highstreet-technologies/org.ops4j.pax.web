@@ -23,7 +23,7 @@
 	<parent>
 		<groupId>org.ops4j.pax.web</groupId>
 		<artifactId>pax-web-itest</artifactId>
-		<version>8.0.15</version>
+		<version>8.0.22</version>
 		<relativePath>../pom.xml</relativePath>
 	</parent>
 
@@ -233,6 +233,12 @@
 			<groupId>org.ops4j.pax.url</groupId>
 			<artifactId>pax-url-aether</artifactId>
 			<scope>test</scope>
+			<exclusions>
+				<exclusion>
+					<groupId>javax.annotation</groupId>
+					<artifactId>javax.annotation-api</artifactId>
+				</exclusion>
+			</exclusions>
 		</dependency>
 
 		<dependency>

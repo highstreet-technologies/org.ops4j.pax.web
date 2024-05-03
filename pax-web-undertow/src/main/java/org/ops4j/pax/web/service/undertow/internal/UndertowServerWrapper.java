@@ -720,7 +720,9 @@ class UndertowServerWrapper implements BatchVisitor, UndertowSupport {
 						workerForListener, bufferPoolForListener,
 						inetAddress
 				);
-				listeners.put(https.getName(), new UndertowFactory.AcceptingChannelWithAddress(listener, inetAddress));
+				UndertowFactory.AcceptingChannelWithAddress l = new UndertowFactory.AcceptingChannelWithAddress(listener, inetAddress);
+				l.setSecure(https.isSecure());
+				listeners.put(https.getName(), l);
 			}
 		}
 
@@ -1384,8 +1386,8 @@ class UndertowServerWrapper implements BatchVisitor, UndertowSupport {
 					}
 				}
 
-				// and the highest ranked context should be registered as OSGi service (if it wasn't registered)
-				highestRankedContext.register();
+//				// and the highest ranked context should be registered as OSGi service (if it wasn't registered)
+//				highestRankedContext.register();
 			}
 			DeploymentInfo deploymentInfo = deploymentInfos.get(contextPath);
 			if (deploymentInfo != null) {
@@ -2421,6 +2423,9 @@ class UndertowServerWrapper implements BatchVisitor, UndertowSupport {
 
 		stopUndertowContext(contextPath, manager, null, false);
 		DeploymentInfo deploymentInfo = deploymentInfos.get(contextPath);
+		if (deploymentInfo == null) {
+			return;
+		}
 
 		final int[] removed = { 0 };
 
@@ -2530,8 +2535,13 @@ class UndertowServerWrapper implements BatchVisitor, UndertowSupport {
 		if (change.getKind() == OpCode.ADD) {
 			LOG.info("Adding security configuration to {}", ocm);
 			// just operate on the same OsgiContextModel that comes with the change
-			// even if it's not highest ranked
-			ocm.getSecurityConfiguration().setLoginConfig(loginConfigModel);
+			// even if it's not highest ranked - it also means we don't have to process the configuration
+			// in ServiceModel visitor
+			if (loginConfigModel != null) {
+				// null is an indication that we're adding security constraints using HttpService approach
+				// after previously adding LoginConfig
+				ocm.getSecurityConfiguration().setLoginConfig(loginConfigModel);
+			}
 			ocm.getSecurityConfiguration().getSecurityRoles().addAll(securityRoles);
 			ocm.getSecurityConfiguration().getSecurityConstraints().addAll(securityConstraints);
 
@@ -2543,14 +2553,26 @@ class UndertowServerWrapper implements BatchVisitor, UndertowSupport {
 					.put(ocm, ocm.getSecurityConfiguration());
 		} else {
 			LOG.info("Removing security configuration from {}", ocm);
-			ocm.getSecurityConfiguration().setLoginConfig(null);
-			securityRoles.forEach(ocm.getSecurityConfiguration().getSecurityRoles()::remove);
-			securityConstraints.forEach(sc -> {
-				ocm.getSecurityConfiguration().getSecurityConstraints()
-						.removeIf(scm -> scm.getName().equals(sc.getName()));
-			});
-			TreeMap<OsgiContextModel, SecurityConfigurationModel> constraints = contextSecurityConstraints.get(ocm.getContextPath());
-			constraints.remove(ocm);
+			if (!ocm.hasDirectHttpContextInstance() || loginConfigModel != null) {
+				// non-null LoginConfigModel for HttpService based security configuration means
+				// that we're removing only login configuration
+				ocm.getSecurityConfiguration().setLoginConfig(null);
+			}
+			if (ocm.hasDirectHttpContextInstance() && loginConfigModel == null) {
+				// null LoginConfigModel for HttpService based security configuration means
+				// that we clear ALL security constraints and roles
+				ocm.getSecurityConfiguration().getSecurityRoles().clear();
+				ocm.getSecurityConfiguration().getSecurityConstraints().clear();
+			} else {
+				// this is the Whiteboard/WAB/HttpContextProcessing case
+				securityRoles.forEach(ocm.getSecurityConfiguration().getSecurityRoles()::remove);
+				securityConstraints.forEach(sc -> {
+					ocm.getSecurityConfiguration().getSecurityConstraints()
+							.removeIf(scm -> scm.getName().equals(sc.getName()));
+				});
+				TreeMap<OsgiContextModel, SecurityConfigurationModel> constraints = contextSecurityConstraints.get(ocm.getContextPath());
+				constraints.remove(ocm);
+			}
 		}
 	}
 
@@ -2589,6 +2611,9 @@ class UndertowServerWrapper implements BatchVisitor, UndertowSupport {
 			// SCIs require working ServletContext inside OsgiServletContext, but Undertow's ServletContext
 			// is created only later
 			deployment.getServletExtensions().removeIf(e -> e instanceof ContextLinkingServletExtension);
+			// I found that for Keycloak extensions, we kept adding them without removing previous ones
+			// so it's simply easier to remove all the extensions
+			deployment.getServletExtensions().clear();
 			deployment.addServletExtension(new ContextLinkingServletExtension(contextPath, highestRankedContext, highestRankedDynamicContext));
 
 			// first thing - only NOW we can set ServletContext's class loader! It affects many things, including
@@ -2596,6 +2621,9 @@ class UndertowServerWrapper implements BatchVisitor, UndertowSupport {
 			if (highestRankedContext.getClassLoader() != null) {
 				deployment.setClassLoader(highestRankedContext.getClassLoader());
 			}
+
+			// copy contexts parameters - from all contexts
+			this.osgiContextModels.get(contextPath).forEach(ocm -> ocm.getContextParams().forEach(deployment::addInitParameter));
 
 			// keycloak accesses resources directly inside
 			// org.keycloak.adapters.undertow.KeycloakServletExtension#handleDeployment where we don't have
@@ -2658,6 +2686,10 @@ class UndertowServerWrapper implements BatchVisitor, UndertowSupport {
 						public String findSessionId(HttpServerExchange exchange) {
 							String prefix = PaxWebSessionIdGenerator.sessionIdPrefix.get();
 							String id = sessionConfig.findSessionId(exchange);
+							int idx = id == null ? -1 : id.indexOf('~');
+							if (idx >= 0) {
+								id = id.substring(idx + 1);
+							}
 							if (id != null && prefix == null) {
 								// we may be restoring sessions in ServletInitialHandler...
 								ServletRequestContext ctx = exchange.getAttachment(ServletRequestContext.ATTACHMENT_KEY);
@@ -2773,12 +2805,10 @@ class UndertowServerWrapper implements BatchVisitor, UndertowSupport {
 
 			List<SecurityConstraintModel> allConstraints = new ArrayList<>();
 			Set<String> allRoles = new LinkedHashSet<>();
-			if (allSecConfigs != null) {
-				allSecConfigs.values().forEach(sc -> {
-					allConstraints.addAll(sc.getSecurityConstraints());
-					allRoles.addAll(sc.getSecurityRoles());
-				});
-			}
+			allSecConfigs.values().forEach(sc -> {
+				allConstraints.addAll(sc.getSecurityConstraints());
+				allRoles.addAll(sc.getSecurityRoles());
+			});
 
 			deployment.addSecurityRoles(allRoles);
 
@@ -2880,6 +2910,10 @@ class UndertowServerWrapper implements BatchVisitor, UndertowSupport {
 
 			// actual registration of "context" in Undertow's path handler.
 			pathHandler.addPrefixPath(contextPath, handler);
+
+			// only now, according to https://docs.osgi.org/specification/osgi.cmpn/7.0.0/service.war.html#d0e100694
+			// register the servlet context
+			highestRankedContext.register();
 		} catch (ServletException e) {
 			throw new IllegalStateException("Can't start Undertow context "
 					+ contextPath + ": " + e.getMessage(), e);

@@ -23,7 +23,7 @@
 	<parent>
 		<groupId>org.ops4j.pax</groupId>
 		<artifactId>web</artifactId>
-		<version>8.0.15</version>
+		<version>8.0.22</version>
 		<relativePath>../pom.xml</relativePath>
 	</parent>
 
@@ -79,6 +79,7 @@
 						</goals>
 						<configuration>
 							<descriptors>
+								<descriptor>mvn:org.apache.karaf.features/specs/${dependency.org.apache.karaf}/xml/features</descriptor>
 								<descriptor>mvn:org.apache.karaf.features/standard/${dependency.org.apache.karaf}/xml/features</descriptor>
 								<descriptor>file:${project.build.directory}/classes/features.xml</descriptor>
 							</descriptors>
@@ -88,7 +89,7 @@
 								<descriptor>mvn:org.ops4j.pax.web/pax-web-features</descriptor>
 							</blacklistedDescriptors>
 							<distribution>org.apache.karaf.features:framework</distribution>
-							<javase>1.8</javase>
+							<javase>9</javase>
 							<framework>
 								<feature>framework</feature>
 							</framework>
@@ -100,19 +101,27 @@
 								<feature>pax-web-jetty-websockets</feature>
 								<feature>pax-web-jetty-extras</feature>
 								<feature>pax-web-jetty-http2</feature>
-<!--								<feature>pax-web-jetty-http2-jdk8</feature>-->
-<!--								<feature>pax-web-jetty-http2-jdk9</feature>-->
+								<feature>pax-web-jetty-http2-extras</feature>
+								<feature>pax-web-jetty-http2-jdk8</feature>
+								<feature>pax-web-jetty-http2-jdk9</feature>
 								<feature>pax-web-http-jetty</feature>
+<!--								<feature>pax-web-jetty-keycloak18</feature>-->
+								<feature>pax-web-jetty-keycloak</feature>
 								<feature>pax-web-tomcat</feature>
 								<feature>pax-web-tomcat-websockets</feature>
 								<feature>pax-web-http-tomcat</feature>
+<!--								<feature>pax-web-tomcat-keycloak18</feature>-->
+								<feature>pax-web-tomcat-keycloak</feature>
 								<feature>pax-web-undertow</feature>
 								<feature>pax-web-undertow-websockets</feature>
+<!--								<feature>pax-web-undertow-keycloak18</feature>-->
+								<feature>pax-web-undertow-keycloak</feature>
 								<feature>pax-web-http-undertow</feature>
 								<feature>pax-web-jsp</feature>
 								<feature>pax-web-whiteboard</feature>
 								<feature>pax-web-war</feature>
 								<feature>pax-web-karaf</feature>
+								<feature>keycloak-adapter-core</feature>
 							</features>
 							<verifyTransitive>false</verifyTransitive>
 							<ignoreMissingConditions>true</ignoreMissingConditions>
@@ -208,6 +217,10 @@
 		</dependency>
 		<dependency>
 			<groupId>org.ops4j.pax.web</groupId>
+			<artifactId>pax-web-jetty-keycloak</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web</groupId>
 			<artifactId>pax-web-jsp</artifactId>
 		</dependency>
 		<dependency>
@@ -232,6 +245,14 @@
 		</dependency>
 		<dependency>
 			<groupId>org.ops4j.pax.web</groupId>
+			<artifactId>pax-web-tomcat-keycloak18</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web</groupId>
+			<artifactId>pax-web-tomcat-keycloak</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web</groupId>
 			<artifactId>pax-web-undertow</artifactId>
 		</dependency>
 		<dependency>
@@ -240,7 +261,20 @@
 		</dependency>
 		<dependency>
 			<groupId>org.ops4j.pax.web</groupId>
+			<artifactId>pax-web-undertow-keycloak</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web</groupId>
 			<artifactId>pax-web-websocket</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.ops4j.pax.web</groupId>
+			<artifactId>keycloak-common</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web</groupId>
+			<artifactId>keycloak-osgi-adapter</artifactId>
 		</dependency>
 
 		<dependency>

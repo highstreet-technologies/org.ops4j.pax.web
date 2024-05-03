@@ -16,6 +16,7 @@
 package org.ops4j.pax.web.service.jetty.internal;
 
 import java.io.File;
+import java.lang.reflect.Field;
 import java.net.InetSocketAddress;
 import java.net.URL;
 import java.util.ArrayList;
@@ -389,7 +390,9 @@ class JettyServerWrapper implements BatchVisitor {
 					}
 					Thread.currentThread().setContextClassLoader(cl);
 				}
-				// it's not enough to load a class to get static{} block called
+				// it's not enough to load a class to get static{} block called. PreEncodedHttpField
+				// itself can be loaded normally, but the static{} block uses
+				// ServiceLoader.load(HttpFieldPreEncoder.class) with TCCL
 				new PreEncodedHttpField("empty", "empty");
 			} finally {
 				Thread.currentThread().setContextClassLoader(tccl);
@@ -809,10 +812,6 @@ class JettyServerWrapper implements BatchVisitor {
 				sessions.getSessionCookieConfig().setSecure(defaultSessionCookieConfig.isSecure());
 				sessions.getSessionCookieConfig().setComment(defaultSessionCookieConfig.getComment());
 
-				if ("disable".equalsIgnoreCase(defaultSessionCookieConfig.getComment())) {
-					LOG.info("session cookies are now disabled");
-					sessions.setUsingCookies(false);
-				}
 				// #1727 - set comment first, because later Jetty can use it to (re)configure same site attribute
 				String sameSiteValue = sc.getSessionCookieSameSite();
 				if (sameSiteValue != null && !"unset".equalsIgnoreCase(sameSiteValue)) {
@@ -1019,8 +1018,8 @@ class JettyServerWrapper implements BatchVisitor {
 					}
 				}
 
-				// and the highest ranked context should be registered as OSGi service (if it wasn't registered)
-				highestRankedContext.register();
+//				// and the highest ranked context should be registered as OSGi service (if it wasn't registered)
+//				highestRankedContext.register();
 			}
 
 			if (hasStopped) {
@@ -1578,6 +1577,17 @@ class JettyServerWrapper implements BatchVisitor {
 					}
 				}
 
+				// a trick we need - reset org.eclipse.jetty.servlet.ServletHandler._matchAfterIndex value
+				// because it's only reset when ServletHandler stops, but this is too much - we don't want
+				// to stop the servlets and entire context (ServletHandler.doStop() calls
+				// org.eclipse.jetty.server.handler.ContextHandler.contextDestroyed())
+				try {
+					Field maiField = ServletHandler.class.getDeclaredField("_matchAfterIndex");
+					maiField.setAccessible(true);
+					maiField.set(sch.getServletHandler(), -1);
+				} catch (NoSuchFieldException | IllegalAccessException ignore) {
+				}
+
 				sch.getServletHandler().setFilters(new FilterHolder[0]);
 				sch.getServletHandler().setFilterMappings(new FilterMapping[0]);
 
@@ -1766,6 +1776,9 @@ class JettyServerWrapper implements BatchVisitor {
 								&& context == pwsh.getOsgiContextModel()) {
 							try {
 								Servlet servlet = sh.getServlet();
+								if (servlet instanceof ServletHolder.Wrapper) {
+									servlet = ((ServletHolder.Wrapper) servlet).getWrapped();
+								}
 								if (servlet instanceof JettyResourceServlet) {
 									((JettyResourceServlet) servlet).setWelcomeFiles(newWelcomeFiles);
 									((JettyResourceServlet) servlet).setWelcomeFilesRedirect(model.isRedirect());
@@ -1950,6 +1963,9 @@ class JettyServerWrapper implements BatchVisitor {
 	private void clearDynamicRegistrations(String contextPath, OsgiContextModel context) {
 		// there should already be a ServletContextHandler
 		PaxWebServletContextHandler sch = contextHandlers.get(contextPath);
+		if (sch == null) {
+			return;
+		}
 
 		// we can safely stop the context
 		if (sch.isStarted()) {
@@ -2092,8 +2108,13 @@ class JettyServerWrapper implements BatchVisitor {
 		if (change.getKind() == OpCode.ADD) {
 			LOG.info("Adding security configuration to {}", ocm);
 			// just operate on the same OsgiContextModel that comes with the change
-			// even if it's not highest ranked
-			ocm.getSecurityConfiguration().setLoginConfig(loginConfigModel);
+			// even if it's not highest ranked - it also means we don't have to process the configuration
+			// in ServiceModel visitor
+			if (loginConfigModel != null) {
+				// null is an indication that we're adding security constraints using HttpService approach
+				// after previously adding LoginConfig
+				ocm.getSecurityConfiguration().setLoginConfig(loginConfigModel);
+			}
 			ocm.getSecurityConfiguration().getSecurityRoles().addAll(securityRoles);
 			ocm.getSecurityConfiguration().getSecurityConstraints().addAll(securityConstraints);
 
@@ -2105,14 +2126,28 @@ class JettyServerWrapper implements BatchVisitor {
 					.put(ocm, ocm.getSecurityConfiguration());
 		} else {
 			LOG.info("Removing security configuration from {}", ocm);
-			ocm.getSecurityConfiguration().setLoginConfig(null);
-			securityRoles.forEach(ocm.getSecurityConfiguration().getSecurityRoles()::remove);
-			securityConstraints.forEach(sc -> {
-				ocm.getSecurityConfiguration().getSecurityConstraints()
-						.removeIf(scm -> scm.getName().equals(sc.getName()));
-			});
-			TreeMap<OsgiContextModel, SecurityConfigurationModel> constraints = contextSecurityConstraints.get(ocm.getContextPath());
-			constraints.remove(ocm);
+			if (!ocm.hasDirectHttpContextInstance() || loginConfigModel != null) {
+				// non-null LoginConfigModel for HttpService based security configuration means
+				// that we're removing only login configuration
+				ocm.getSecurityConfiguration().setLoginConfig(null);
+			}
+			if (ocm.hasDirectHttpContextInstance() && loginConfigModel == null) {
+				// null LoginConfigModel for HttpService based security configuration means
+				// that we clear ALL security constraints and roles
+				ocm.getSecurityConfiguration().getSecurityRoles().clear();
+				ocm.getSecurityConfiguration().getSecurityConstraints().clear();
+			} else {
+				// this is the Whiteboard/WAB/HttpContextProcessing case
+				securityRoles.forEach(ocm.getSecurityConfiguration().getSecurityRoles()::remove);
+				securityConstraints.forEach(sc -> {
+					ocm.getSecurityConfiguration().getSecurityConstraints()
+							.removeIf(scm -> scm.getName().equals(sc.getName()));
+				});
+				TreeMap<OsgiContextModel, SecurityConfigurationModel> constraints = contextSecurityConstraints.get(ocm.getContextPath());
+				if (constraints != null) {
+					constraints.remove(ocm);
+				}
+			}
 		}
 	}
 
@@ -2140,6 +2175,10 @@ class JettyServerWrapper implements BatchVisitor {
 			// first thing - only NOW we can set ServletContext's class loader! It affects many things, including
 			// the TCCL used for example by javax.el.ExpressionFactory.newInstance()
 			sch.setClassLoader(highestRankedContext.getClassLoader());
+
+			// copy contexts parameters - from all contexts
+			this.osgiContextModels.get(contextPath).forEach(ocm -> ocm.getContextParams()
+					.forEach((k, v) -> sch.getInitParams().put(k, v)));
 
 			highestRankedContext.clearAttributesFromPreviousCycle();
 			clearDynamicRegistrations(contextPath, highestRanked);
@@ -2189,10 +2228,7 @@ class JettyServerWrapper implements BatchVisitor {
 					sessionHandler.getSessionCookieConfig().setMaxAge(scc.getMaxAge());
 					sessionHandler.getSessionCookieConfig().setHttpOnly(scc.isHttpOnly());
 					sessionHandler.getSessionCookieConfig().setSecure(scc.isSecure());
-					if ("disable".equalsIgnoreCase(defaultSessionCookieConfig.getComment())) {
-						LOG.info("session cookies are now disabled2");
-						sessionHandler.setUsingCookies(false);
-					}
+
 					// #1727 - set comment first, because later Jetty can use it to (re)configure same site attribute
 					String comment = scc.getComment();
 					sessionHandler.getSessionCookieConfig().setComment(comment);
@@ -2276,7 +2312,7 @@ class JettyServerWrapper implements BatchVisitor {
 				}
 
 				// roles and constraints are not taken only from the highest ranked OsgiContextModel - they're
-				// taken from all the OCMs for given context path - on order of OCM rank
+				// taken from all the OCMs for given context path - in order of OCM rank
 				// it's up to user to take care of the conflicts, because simple rank-ordering will add higher-ranked
 				// rules first - the container may decide to override or reject the lower ranked later.
 
@@ -2381,12 +2417,16 @@ class JettyServerWrapper implements BatchVisitor {
 
 					previous = cfg;
 				}
+				sch.start();
 			} finally {
 				Thread.currentThread().setContextClassLoader(tccl);
 			}
-			sch.start();
 
 			dynamicContext.rememberAttributesFromSCIs();
+
+			// only now, according to https://docs.osgi.org/specification/osgi.cmpn/7.0.0/service.war.html#d0e100694
+			// register the servlet context
+			highestRankedContext.register();
 		} catch (Exception e) {
 			LOG.error(e.getMessage(), e);
 		}
