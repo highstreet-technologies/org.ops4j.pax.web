@@ -21,14 +21,7 @@ package org.ops4j.pax.web.service.whiteboard;
  * @author dsklyut
  * @since 0.7.0
  */
-public interface WelcomeFileMapping {
-
-	/**
-	 * Getter.
-	 *
-	 * @return id of the http context this jsp belongs to
-	 */
-	String getHttpContextId();
+public interface WelcomeFileMapping extends ContextRelated {
 
 	/**
 	 * Getter

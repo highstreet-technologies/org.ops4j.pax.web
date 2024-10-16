@@ -15,21 +15,19 @@
  */
 package org.ops4j.pax.web.service.undertow.internal.security;
 
-import javax.security.auth.Subject;
-import javax.security.auth.callback.Callback;
-import javax.security.auth.callback.CallbackHandler;
-import javax.security.auth.callback.NameCallback;
-import javax.security.auth.callback.PasswordCallback;
-import javax.security.auth.callback.UnsupportedCallbackException;
-import javax.security.auth.login.LoginContext;
-import javax.security.auth.login.LoginException;
-import java.io.IOException;
 import java.security.Principal;
 import java.security.cert.X509Certificate;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import javax.security.auth.Subject;
+import javax.security.auth.callback.Callback;
+import javax.security.auth.callback.NameCallback;
+import javax.security.auth.callback.PasswordCallback;
+import javax.security.auth.callback.UnsupportedCallbackException;
+import javax.security.auth.login.LoginContext;
+import javax.security.auth.login.LoginException;
 
 import io.undertow.security.idm.Account;
 import io.undertow.security.idm.Credential;
@@ -37,6 +35,9 @@ import io.undertow.security.idm.IdentityManager;
 import io.undertow.security.idm.PasswordCredential;
 import io.undertow.security.idm.X509CertificateCredential;
 
+/**
+ * Implementation of {@link IdentityManager} for {@code <w:jaas>} authentication from {@code undertow.xml}.
+ */
 public class JaasIdentityManager implements IdentityManager {
 
 	private final String realm;
@@ -69,7 +70,7 @@ public class JaasIdentityManager implements IdentityManager {
 		if (credential instanceof X509CertificateCredential) {
 			X509CertificateCredential certCredential = (X509CertificateCredential) credential;
 			X509Certificate certificate = certCredential.getCertificate();
-			return verify(certificate.getSubjectDN().getName(), credential);
+			return verify(certificate.getSubjectX500Principal().getName(), credential);
 		}
 		throw new IllegalArgumentException("Parameter must be a X509CertificateCredential");
 	}
@@ -80,17 +81,14 @@ public class JaasIdentityManager implements IdentityManager {
 			if (credential instanceof PasswordCredential) {
 				final char[] password = ((PasswordCredential) credential).getPassword();
 				Subject subject = new Subject();
-				LoginContext loginContext = new LoginContext(realm, subject, new CallbackHandler() {
-					@Override
-					public void handle(Callback[] callbacks) throws IOException, UnsupportedCallbackException {
-						for (Callback callback : callbacks) {
-							if (callback instanceof NameCallback) {
-								((NameCallback) callback).setName(id);
-							} else if (callback instanceof PasswordCallback) {
-								((PasswordCallback) callback).setPassword(password);
-							} else {
-								throw new UnsupportedCallbackException(callback);
-							}
+				LoginContext loginContext = new LoginContext(realm, subject, callbacks -> {
+					for (Callback callback : callbacks) {
+						if (callback instanceof NameCallback) {
+							((NameCallback) callback).setName(id);
+						} else if (callback instanceof PasswordCallback) {
+							((PasswordCallback) callback).setPassword(password);
+						} else {
+							throw new UnsupportedCallbackException(callback);
 						}
 					}
 				});
@@ -114,13 +112,12 @@ public class JaasIdentityManager implements IdentityManager {
 	}
 
 	private static class AccountImpl implements Account {
-
 		private final Subject subject;
 		private final Principal principal;
 		private final Set<String> roles;
 		private final Credential credential;
 
-		public AccountImpl(Subject subject, Principal principal, Set<String> roles, Credential credential) {
+		AccountImpl(Subject subject, Principal principal, Set<String> roles, Credential credential) {
 			this.subject = subject;
 			this.principal = principal;
 			this.roles = roles;
@@ -145,4 +142,5 @@ public class JaasIdentityManager implements IdentityManager {
 			return credential;
 		}
 	}
+
 }

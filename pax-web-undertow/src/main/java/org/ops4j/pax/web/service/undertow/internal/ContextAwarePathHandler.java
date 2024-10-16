@@ -24,6 +24,7 @@ import io.undertow.server.HttpServerExchange;
 import io.undertow.server.handlers.PathHandler;
 import io.undertow.server.handlers.ResponseCodeHandler;
 import io.undertow.server.handlers.cache.LRUCache;
+import org.ops4j.pax.web.annotations.Review;
 import org.osgi.service.http.HttpContext;
 
 /**
@@ -36,6 +37,7 @@ import org.osgi.service.http.HttpContext;
  * doing.</p>
  * <p>It's a direct fork of original {@link PathHandler} but with different {@link io.undertow.util.PathMatcher}</p>
  */
+@Review("Is it needed?")
 public class ContextAwarePathHandler extends PathHandler {
 
 	private final PathMatcher<HttpHandler> pathMatcher = new PathMatcher<>();
@@ -57,7 +59,7 @@ public class ContextAwarePathHandler extends PathHandler {
 	}
 
 	public ContextAwarePathHandler(int cacheSize) {
-		if(cacheSize > 0) {
+		if (cacheSize > 0) {
 			cache = new LRUCache<>(cacheSize, -1, true);
 		} else {
 			cache = null;
@@ -68,22 +70,22 @@ public class ContextAwarePathHandler extends PathHandler {
 	public void handleRequest(HttpServerExchange exchange) throws Exception {
 		PathMatcher.PathMatch<HttpHandler> match = null;
 		boolean hit = false;
-		if(cache != null) {
+		if (cache != null) {
 			match = cache.get(exchange.getRelativePath());
 			hit = true;
 		}
-		if(match == null) {
+		if (match == null) {
 			match = pathMatcher.match(exchange.getRelativePath());
 		}
 		if (match.getValue() == null) {
 			ResponseCodeHandler.HANDLE_404.handleRequest(exchange);
 			return;
 		}
-		if(hit) {
+		if (hit) {
 			cache.add(exchange.getRelativePath(), match);
 		}
 		exchange.setRelativePath(match.getRemaining());
-		if(exchange.getResolvedPath().isEmpty()) {
+		if (exchange.getResolvedPath().isEmpty()) {
 			//first path handler, we can just use the matched part
 			exchange.setResolvedPath(match.getMatched());
 		} else {

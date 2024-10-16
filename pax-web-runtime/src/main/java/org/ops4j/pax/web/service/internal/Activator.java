@@ -1,4 +1,5 @@
-/* Copyright 2007 Niclas Hedhman.
+/*
+ * Copyright 2007 Niclas Hedhman.
  * Copyright 2007 Alin Dreghiciu.
  * Copyright 2011 Achim Nierbeck.
  *
@@ -6,51 +7,53 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
- * implied.
- *
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
 package org.ops4j.pax.web.service.internal;
 
-import static org.ops4j.pax.web.jsp.JspWebdefaults.PROPERTY_JSP_CHECK_INTERVAL;
-import static org.ops4j.pax.web.jsp.JspWebdefaults.PROPERTY_JSP_DEBUG_INFO;
-import static org.ops4j.pax.web.jsp.JspWebdefaults.PROPERTY_JSP_DEVELOPMENT;
-import static org.ops4j.pax.web.jsp.JspWebdefaults.PROPERTY_JSP_ENABLE_POOLING;
-import static org.ops4j.pax.web.jsp.JspWebdefaults.PROPERTY_JSP_IE_CLASS_ID;
-import static org.ops4j.pax.web.jsp.JspWebdefaults.PROPERTY_JSP_JAVA_ENCODING;
-import static org.ops4j.pax.web.jsp.JspWebdefaults.PROPERTY_JSP_KEEP_GENERATED;
-import static org.ops4j.pax.web.jsp.JspWebdefaults.PROPERTY_JSP_LOG_VERBOSITY_LEVEL;
-import static org.ops4j.pax.web.jsp.JspWebdefaults.PROPERTY_JSP_MAPPED_FILE;
-import static org.ops4j.pax.web.jsp.JspWebdefaults.PROPERTY_JSP_PRECOMPILATION;
-import static org.ops4j.pax.web.jsp.JspWebdefaults.PROPERTY_JSP_SCRATCH_DIR;
-import static org.ops4j.pax.web.jsp.JspWebdefaults.PROPERTY_JSP_TAGPOOL_MAX_SIZE;
-import static org.ops4j.pax.web.service.WebContainerConstants.*;
-
 import java.io.File;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.Dictionary;
-import java.util.Enumeration;
+import java.util.HashMap;
 import java.util.Hashtable;
-import java.util.concurrent.ExecutorService;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.ops4j.pax.swissbox.property.BundleContextPropertyResolver;
+import org.ops4j.pax.web.annotations.PaxWebConfiguration;
+import org.ops4j.pax.web.service.PaxWebConfig;
+import org.ops4j.pax.web.service.PaxWebConstants;
 import org.ops4j.pax.web.service.WebContainer;
-import org.ops4j.pax.web.service.internal.util.SupportUtils;
-import org.ops4j.pax.web.service.spi.Configuration;
+import org.ops4j.pax.web.service.internal.security.SecurePropertyResolver;
 import org.ops4j.pax.web.service.spi.ServerController;
 import org.ops4j.pax.web.service.spi.ServerControllerFactory;
-import org.ops4j.pax.web.service.spi.ServletListener;
+import org.ops4j.pax.web.service.spi.config.Configuration;
+import org.ops4j.pax.web.service.spi.config.JspConfiguration;
+import org.ops4j.pax.web.service.spi.config.LogConfiguration;
+import org.ops4j.pax.web.service.spi.config.ResourceConfiguration;
+import org.ops4j.pax.web.service.spi.config.SecurityConfiguration;
+import org.ops4j.pax.web.service.spi.config.ServerConfiguration;
+import org.ops4j.pax.web.service.spi.config.SessionConfiguration;
 import org.ops4j.pax.web.service.spi.model.ServerModel;
+import org.ops4j.pax.web.service.spi.model.events.ServerEvent;
+import org.ops4j.pax.web.service.spi.model.events.ServerListener;
+import org.ops4j.pax.web.service.spi.model.events.WebApplicationEventListener;
+import org.ops4j.pax.web.service.spi.model.events.WebElementEventListener;
 import org.ops4j.pax.web.service.spi.util.NamedThreadFactory;
+import org.ops4j.pax.web.service.spi.util.Utils;
 import org.ops4j.util.property.DictionaryPropertyResolver;
 import org.ops4j.util.property.PropertyResolver;
 import org.osgi.framework.Bundle;
@@ -58,38 +61,59 @@ import org.osgi.framework.BundleActivator;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.Constants;
 import org.osgi.framework.Filter;
+import org.osgi.framework.ServiceFactory;
 import org.osgi.framework.ServiceReference;
 import org.osgi.framework.ServiceRegistration;
-import org.osgi.service.cm.ConfigurationAdmin;
-import org.osgi.service.cm.ConfigurationException;
-import org.osgi.service.cm.ManagedService;
-import org.osgi.service.cm.ManagedServiceFactory;
-import org.osgi.service.event.EventAdmin;
+import org.osgi.framework.dto.ServiceReferenceDTO;
 import org.osgi.service.http.HttpService;
+import org.osgi.service.http.runtime.HttpServiceRuntime;
+import org.osgi.service.http.runtime.HttpServiceRuntimeConstants;
 import org.osgi.service.log.LogService;
 import org.osgi.util.tracker.ServiceTracker;
 import org.osgi.util.tracker.ServiceTrackerCustomizer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class Activator implements BundleActivator {
+import static org.ops4j.pax.web.service.PaxWebConstants.HTTPSERVICE_REGISTRATION_NAMES;
+
+/**
+ * <p>Main entry point to Pax-Web.</p>
+ * <p>This activator performs these actions:<ul>
+ *     <li>servlet event dispatcher</li>
+ *     <li>registration of {@link WebElementEventListener}-{@code org.osgi.service.event.EventAdmin} bridge</li>
+ *     <li>registration of {@link WebElementEventListener}-{@link LogService} bridge</li>
+ *     <li>registration of {@code org.osgi.service.cm.ManagedService} to monitor
+ *     {@code org.ops4j.pax.web} PID changes</li>
+ * </ul></p>
+ * <p></p>
+ */
+public class Activator implements BundleActivator, PaxWebManagedService.ConfigurationUpdater {
 
 	private static final Logger LOG = LoggerFactory.getLogger(Activator.class);
 
-	/**
-	 * Current Configuration Admin configuration (PID = {@code org.ops4j.pax.web})
-	 */
-	private Dictionary<String, ?> config;
+	private BundleContext bundleContext;
 
-	/**
-	 * Current {@link ServerControllerFactory} tracked from OSGi registry
-	 */
-	private ServerControllerFactory factory;
+	// "current" objects mean that they're not bound to the lifecycle of pax-web-runtime bundle, but
+	// to instance of configuration (from Configuration Admin) and to ServerControllerFactory service
+	// registered by one of server bundles (pax-web-jetty, pax-web-undertow, pax-web-tomcat)
 
-	/**
-	 * Current {@link ServerController} created using current {@link #factory}
-	 */
+	/** Current Configuration Admin configuration (PID = {@code org.ops4j.pax.web}) */
+	private Dictionary<String, ?> configuration;
+
+	/** Current {@link ServerControllerFactory} tracked from OSGi registry */
+	private ServerControllerFactory serverControllerFactory;
+
+	/** Current {@link ServerController} created using {@link #serverControllerFactory} */
 	private ServerController serverController;
+
+	/**
+	 * {@link WebElementEventDispatcher} bound to lifecycle of this pax-web-runtime bundle, not to configuration
+	 * or {@link ServerControllerFactory}.
+	 */
+	private WebElementEventDispatcher webElementEventDispatcher;
+
+	/** Processor for instructions in {@code org.ops4j.pax.web.context} factory PID */
+	private HttpContextProcessing httpContextProcessing;
 
 	/**
 	 * Registration for current {@link org.osgi.framework.ServiceFactory} for {@link HttpService} and
@@ -98,137 +122,159 @@ public class Activator implements BundleActivator {
 	private ServiceRegistration<?> httpServiceFactoryReg;
 
 	/**
-	 * Registration of MSF for {@code org.ops4j.pax.web.context} factory PID for current
-	 * {@link ServerControllerFactory}
+	 * <p>Registration for current (1:1 with {@link ServerModel}) {@link HttpServiceRuntime}.
+	 * See 140.9 The Http Service Runtime Service. Even if it's defined in Whiteboard (OSGi CMPN R7 140) specification,
+	 * the information presented by Pax Web 8 comes from 3 "sources":<ul>
+	 *     <li>Whiteboard (pax-web-extender-whiteboard)</li>
+	 *     <li>{@link HttpService} (pax-web-runtime)</li>
+	 *     <li>WABs (pax-web-extender-war)</li>
+	 * </ul></p>
 	 */
-	private ServiceRegistration<ManagedServiceFactory> managedServiceFactoryReg;
+	private ServiceRegistration<HttpServiceRuntime> httpServiceRuntimeReg;
 
-	private BundleContext bundleContext;
+	/** Registration of {@code org.osgi.service.cm.ManagedService} for {@code org.ops4j.pax.web} PID. */
+	private ServiceRegistration<?> managedServiceReg;
 
-	private ServletEventDispatcher servletEventDispatcher;
+	/**
+	 * Registration of {@code org.osgi.service.cm.ManagedServiceFactory} for {@code org.ops4j.pax.web.context}
+	 * factory PID for current {@link ServerControllerFactory}. When {@link ServerControllerFactory} changes,
+	 * this MSF is re-registered.
+	 */
+	private ServiceRegistration<?> managedServiceFactoryReg;
 
-	private ServiceTracker<EventAdmin, EventAdmin> eventServiceTracker;
+	/** Tracker for {@link ServerControllerFactory} that may come from one of server bundles (e.g., pax-web-jetty) */
+	private ServiceTracker<ServerControllerFactory, ServerControllerFactory> serverControllerFactoryTracker;
 
+	/** Tracker for optional EventAdmin */
+	private ServiceTracker<?, ?> eventServiceTracker;
+
+	/** Tracker for optional LogService, but because Slf4J comes from pax-logging anyway, this service is usually available */
 	private ServiceTracker<LogService, LogService> logServiceTracker;
 
-	private ServiceTracker<ServerControllerFactory, ServerControllerFactory> dynamicsServiceTracker;
+	private ServiceTracker<ServerListener, ServerListener> serverListenerTracker;
+	private final List<ServerListener> serverListeners = new CopyOnWriteArrayList<>();
 
-	private final ExecutorService configExecutor = new ThreadPoolExecutor(0, 1,
-			20, TimeUnit.SECONDS, new LinkedBlockingQueue<>(), new NamedThreadFactory("paxweb-config"));
+	private ServiceTracker<?, ?> jasyptTracker;
+	private final AtomicBoolean jasyptTracking = new AtomicBoolean(false);
 
-	private boolean initialConfigSet;
+	private final AtomicBoolean initialConfigSet = new AtomicBoolean(false);
 
-	private HttpContextProcessing httpContextProcessing;
+	/**
+	 * Global, single instance of {@link ServerModel} recreated together with each (re)registration of
+	 * {@link HttpService}.
+	 */
+	private ServerModel serverModel = null;
 
-	public Activator() {
-	}
+	/**
+	 * Single thread pool to process all configuration changes, {@link ServerControllerFactory} (re)registrations
+	 * and (since Pax Web 8) also actual registrations of web elements.
+	 */
+	private ScheduledExecutorService runtimeExecutor;
+	private long registrationThreadId;
 
 	@Override
 	public void start(final BundleContext context) throws Exception {
-		LOG.debug("Starting Pax Web");
-		this.bundleContext = context;
-		servletEventDispatcher = new ServletEventDispatcher(context);
-		if (SupportUtils.isEventAdminAvailable()) {
-			// Do use the filters this way the eventadmin packages can be
-			// resolved optional!
-			Filter filterEvent = context
-					.createFilter("(objectClass=org.osgi.service.event.EventAdmin)");
-			EventAdminHandler adminHandler = new EventAdminHandler(
-					context);
-			eventServiceTracker = new ServiceTracker<>(
-					context, filterEvent, adminHandler);
+		LOG.debug("Starting Pax Web Runtime");
+
+		runtimeExecutor = Executors.newSingleThreadScheduledExecutor(new NamedThreadFactory("paxweb-config"));
+		registrationThreadId = ServerModel.getThreadIdFromSingleThreadPool(runtimeExecutor);
+
+		bundleContext = context;
+
+		serverListenerTracker = new ServiceTracker<>(bundleContext, ServerListener.class, new ServerListenerCustomizer());
+		serverListenerTracker.open();
+
+		if (Utils.isConfigurationAdminAvailable(this.getClass())) {
+			// ManagedService for org.ops4j.pax.web PID monitoring, so configuration won't happen yet
+			// (for example in FelixStartLevel thread), but only after Configuration Admin notifies us
+			registerManagedService(context);
+		} else {
+			// no org.osgi.service.cm.ConfigurationAdmin available at all, so we can configure immediately
+			updateConfiguration(null);
+		}
+
+		if (Utils.isEventAdminAvailable(this.getClass())) {
+			// Do use the filters this way the eventadmin packages can be resolved optional!
+			Filter filterEvent = context.createFilter("(objectClass=org.osgi.service.event.EventAdmin)");
+			EventAdminHandler adminHandler = new EventAdminHandler(context);
+			eventServiceTracker = new ServiceTracker<>(context, filterEvent, adminHandler);
 			eventServiceTracker.open();
-			context.registerService(ServletListener.class, adminHandler,
-					null);
-			LOG.info("EventAdmin support enabled, servlet events will be postet to topics.");
+
+			context.registerService(WebApplicationEventListener.class, adminHandler, null);
+			LOG.info("EventAdmin support enabled, WAB events will be posted to EventAdmin topics.");
 		} else {
-			LOG.info("EventAdmin support is not available, no servlet events will be posted!");
-		}
-		if (SupportUtils.isLogServiceAvailable()) {
-			// Do use the filters this way the logservice packages can be
-			// resolved optional!
-			Filter filterLog = context
-					.createFilter("(objectClass=org.osgi.service.log.LogService)");
-			LogServiceHandler logServiceHandler = new LogServiceHandler(
-					context);
-			logServiceTracker = new ServiceTracker<>(
-					context, filterLog, logServiceHandler);
-			logServiceTracker.open();
-			context.registerService(ServletListener.class,
-					logServiceHandler, null);
-			LOG.info("LogService support enabled, log events will be created.");
-		} else {
-			LOG.info("LogService support is not available, no log events will be created!");
+			LOG.info("EventAdmin support is not available, no WAB events will be sent.");
 		}
 
-		if (SupportUtils.isManagedServiceAvailable()) {
-			// ManagedService for org.ops4j.pax.web PID
-			createManagedService(context);
-		} else {
-			scheduleUpdateConfig(null);
-		}
-
-		// special handling for JSP Compiler
-		if (SupportUtils.isJSPAvailable()) {
-			System.setProperty("org.apache.jasper.compiler.disablejsr199",
-					Boolean.TRUE.toString());
-		}
-
-		LOG.info("Pax Web started");
+		LOG.info("Pax Web Runtime started");
 	}
 
 	@Override
 	public void stop(final BundleContext context) {
-		LOG.debug("Stopping Pax Web...");
+		LOG.debug("Stopping Pax Web Runtime");
 
-		if (dynamicsServiceTracker != null) {
-			dynamicsServiceTracker.close();
+		if (serverModel != null) {
+			serverModel.setStopping();
 		}
-		if (logServiceTracker != null) {
-			logServiceTracker.close();
+
+		if (serverControllerFactory != null && serverController != null) {
+			serverControllerFactory.releaseServerController(serverController, serverController.getConfiguration());
+		}
+
+		cleanUpHttpServiceRegistrations();
+
+		if (jasyptTracker != null) {
+			jasyptTracker.close();
+			jasyptTracker = null;
+		}
+		if (serverListenerTracker != null) {
+			serverListenerTracker.close();
+			serverListenerTracker = null;
+		}
+		if (serverControllerFactoryTracker != null) {
+			serverControllerFactoryTracker.close();
+			serverControllerFactoryTracker = null;
+		}
+		if (managedServiceReg != null) {
+			managedServiceReg.unregister();
+			managedServiceReg = null;
 		}
 		if (eventServiceTracker != null) {
 			eventServiceTracker.close();
+			eventServiceTracker = null;
 		}
-		if (servletEventDispatcher != null) {
-			servletEventDispatcher.destroy();
+		if (webElementEventDispatcher != null) {
+			webElementEventDispatcher.destroy();
+			webElementEventDispatcher = null;
 		}
-		if (httpContextProcessing != null) {
-			httpContextProcessing.destroy();
-		}
-		// Wait up to 20 seconds, otherwhise
+
+		// Wait up to 20 seconds, otherwise...
 		try {
-			configExecutor.shutdown();
+			runtimeExecutor.shutdown();
 			LOG.debug("...entering 20 seconds grace period...");
-			configExecutor.awaitTermination(20, TimeUnit.SECONDS);
-			configExecutor.shutdownNow();
+			boolean ok = runtimeExecutor.awaitTermination(20, TimeUnit.SECONDS);
+			if (!ok) {
+				LOG.warn("Timeout awaiting termination, shutting down the executor.");
+			}
+			runtimeExecutor.shutdownNow();
 		} catch (InterruptedException e) {
-			// Ignore, we are done anyways...
+			Thread.currentThread().interrupt();
+			// ...Ignore, we are done anyways.
 		}
-		LOG.info("Pax Web stopped");
+
+		LOG.info("Pax Web Runtime stopped");
 	}
 
 	/**
-	 * Registers a managed service to listen on configuration updates.
-	 *
+	 * Registers a managed service to listen on configuration updates. Used only if
+	 * {@link org.osgi.service.cm.ConfigurationAdmin} is available.
 	 * @param context bundle context to use for registration
 	 */
-	private void createManagedService(final BundleContext context) {
-		ManagedService service = this::scheduleUpdateConfig;
+	private void registerManagedService(final BundleContext context) {
 		final Dictionary<String, String> props = new Hashtable<>();
-		props.put(Constants.SERVICE_PID, org.ops4j.pax.web.service.WebContainerConstants.PID);
-		context.registerService(ManagedService.class, service, props);
-
-		// If ConfigurationAdmin service is not available, then do a default configuration.
-		// In other cases, ConfigurationAdmin service will always call the ManagedService.
-		if (context.getServiceReference(ConfigurationAdmin.class.getName()) == null) {
-			try {
-				service.updated(null);
-			} catch (ConfigurationException ignore) {
-				// this should never happen
-				LOG.error("Internal error. Cannot set initial configuration resolver.", ignore);
-			}
-		}
+		props.put(Constants.SERVICE_PID, PaxWebConstants.PID);
+		managedServiceReg = context.registerService("org.osgi.service.cm.ManagedService",
+				new PaxWebManagedService(this), props);
 	}
 
 	/**
@@ -237,8 +283,9 @@ public class Activator implements BundleActivator {
 	 * per-bundle http services.
 	 *
 	 * @param context
+	 * @param serverController
 	 */
-	private void createManagedServiceFactory(BundleContext context) {
+	private void createManagedServiceFactory(BundleContext context, ServerController serverController) {
 		// sanity check
 		if (managedServiceFactoryReg != null) {
 			managedServiceFactoryReg.unregister();
@@ -246,324 +293,486 @@ public class Activator implements BundleActivator {
 		}
 		final Dictionary<String, String> props = new Hashtable<>();
 		props.put(Constants.SERVICE_PID, HttpContextProcessing.PID);
-		httpContextProcessing = new HttpContextProcessing(bundleContext, serverController);
-		managedServiceFactoryReg = context.registerService(ManagedServiceFactory.class, httpContextProcessing, props);
+		httpContextProcessing = new HttpContextProcessing(context);
+		managedServiceFactoryReg = context.registerService("org.osgi.service.cm.ManagedServiceFactory",
+				httpContextProcessing, props);
 	}
 
-	protected boolean same(Dictionary<String, ?> cfg1,
-						   Dictionary<String, ?> cfg2) {
-		if (cfg1 == null) {
-			return cfg2 == null;
-		} else if (cfg2 == null) {
-			return false;
-		} else if (cfg1.size() != cfg2.size()) {
-			return false;
-		} else {
-			boolean result = true;
-			Enumeration<String> keys = cfg1.keys();
-			while (result && keys.hasMoreElements()) {
-				String key = keys.nextElement();
-				Object v1 = cfg1.get(key);
-				Object v2 = cfg2.get(key);
-				result = same(v1, v2);
-			}
-			return result;
-		}
-	}
-
-	protected boolean same(Object v1, Object v2) {
-		if (v1 == null) {
-			return v2 == null;
-		} else if (v2 == null) {
-			return false;
-		} else {
-			return v1 == v2 || v1.equals(v2);
-		}
-	}
+	// two methods update the configuration of entire Pax Web runtime:
+	//  - updateConfiguration(Dictionary) - schedules reconfiguration because configuration properties changed
+	//  - updateServerControllerFactory(ServerControllerFactory) - schedules reconfiguration because ServerControllerFactory changed
+	// both methods schedule the reconfiguration in another thread from single thread pool
 
 	/**
-	 * That's actual implementation of {@link ManagedService#updated(Dictionary)}
+	 * Called directly or from {@link org.osgi.service.cm.ManagedService#updated(Dictionary)}. Current
+	 * {@link HttpService} has to be re-registered because configuration has changed.
 	 * @param configuration
 	 */
-	private void scheduleUpdateConfig(final Dictionary<String, ?> configuration) {
-		// change configuration using new properties from configadmin
-		configExecutor.submit(() -> updateController(configuration, factory));
+	@Override
+	public void updateConfiguration(final Dictionary<String, ?> configuration) {
+		LOG.info("Scheduling Pax Web reconfiguration because configuration has changed");
+		// change configuration using new properties (possibly from configadmin) and current ServerControllerFactory
+		runtimeExecutor.submit(() -> {
+			String name = Thread.currentThread().getName();
+			try {
+				Thread.currentThread().setName(name + " (change config)");
+				updateController(configuration, serverControllerFactory);
+			} finally {
+				Thread.currentThread().setName(name);
+			}
+		});
 	}
 
 	/**
-	 * Called by tracker of {@link ServerControllerFactory} services
+	 * Called by tracker of {@link ServerControllerFactory} services. Current {@link HttpService} has to be
+	 * re-registered because target server has changed.
 	 * @param controllerFactory
 	 */
-	private void scheduleUpdateFactory(final ServerControllerFactory controllerFactory) {
-		// change configuration using new (or null when not available) ServerControllerFactory
-		Future<?> future = configExecutor.submit(() -> updateController(config, controllerFactory));
+	private void updateServerControllerFactory(final ServerControllerFactory controllerFactory) {
+		if (this.serverControllerFactory != null) {
+			if (controllerFactory == null) {
+				LOG.info("Scheduling Pax Web reconfiguration because ServerControllerFactory has been unregistered");
+			} else {
+				LOG.info("Scheduling Pax Web reconfiguration because ServerControllerFactory has been re-registered");
+			}
+		} else if (controllerFactory != null) {
+			LOG.info("Scheduling Pax Web reconfiguration because ServerControllerFactory has been registered");
+		}
 
-		// Make sure we destroy things synchronously
+		// change configuration using new (or null when not available) ServerControllerFactory and current configuration
+		Future<?> future = runtimeExecutor.submit(() -> {
+			String name = Thread.currentThread().getName();
+			try {
+				Thread.currentThread().setName(name + " (change controller)");
+				updateController(configuration, controllerFactory);
+			} finally {
+				Thread.currentThread().setName(name);
+			}
+		});
+
+		// Make sure that when destroying the configuration (factory == null), we do things synchronously
 		if (controllerFactory == null) {
 			try {
 				future.get(20, TimeUnit.SECONDS);
-				// CHECKSTYLE:OFF
 			} catch (Exception e) {
 				LOG.info("Error when updating factory: " + e.getMessage(), e);
 			}
-			// CHECKSTYLE:ON
 		}
 	}
 
 	/**
-	 * <p>This method is the only place which is allowed to modify the config and factory fields.</p>
+	 * <p>This method is the only place which is allowed to modify the config and factory fields and it should
+	 * run only within single-threded {@link java.util.concurrent.ExecutorService}.</p>
+	 *
 	 * <p>Here a new {@link org.osgi.framework.ServiceFactory} for {@link HttpService} and {@link WebContainer}
 	 * is registered for {@code org.ops4j.pax.web} PID.</p>
+	 *
+	 * <p>This method may be called in 3 cases:<ul>
+	 *     <li>when {@link org.osgi.service.cm.ConfigurationAdmin} passes changed {@code org.ops4j.pax.web}
+	 *     PID config</li>
+	 *     <li>when {@link ServerControllerFactory} is added/removed by tracker</li>
+	 *     <li>when {@link org.osgi.service.cm.ConfigurationAdmin} is not available and this activator starts
+	 *     (default configuration)</li>
+	 * </ul></p>
 	 *
 	 * @param dictionary
 	 * @param controllerFactory
 	 */
-	protected void updateController(Dictionary<String, ?> dictionary,
-									ServerControllerFactory controllerFactory) {
+	@PaxWebConfiguration
+	private void updateController(Dictionary<String, ?> dictionary, ServerControllerFactory controllerFactory) {
 		// We want to make sure the configuration is known before starting the
 		// service tracker, else the configuration could be set after the
 		// service is found which would cause a restart of the service
-		if (!initialConfigSet) {
-			initialConfigSet = true;
-			this.config = dictionary;
-			this.factory = controllerFactory;
-			dynamicsServiceTracker = new ServiceTracker<>(
-					bundleContext, ServerControllerFactory.class,
-					new DynamicsServiceTrackerCustomizer());
-			dynamicsServiceTracker.open();
+		if (!initialConfigSet.get()) {
+			LOG.debug("Initial configuration of pax-web-runtime, registration of ServerControllerFactory tracker");
+			initialConfigSet.compareAndSet(false, true);
+			this.configuration = dictionary;
+			this.serverControllerFactory = controllerFactory; // should always be null here
+
+			// the only place where tracker of ServerControllerFactory services is created and opened
+			serverControllerFactoryTracker = new ServiceTracker<>(bundleContext, ServerControllerFactory.class, new ServerControllerFactoryCustomizer());
+			serverControllerFactoryTracker.open();
+
+			// we have configuration (possibly empty). Getting ServerControllerFactory from the tracker is the
+			// next step. We can't do anything without the server controller.
+			// remember that updateController() may be called quickly in the above tracker.open() method, where
+			// initial reference to ServerControllerFactory is already available (that's why we use ExecutorService)
 			return;
 		}
-		if (same(dictionary, this.config) && same(controllerFactory, this.factory)) {
+
+		if (Utils.same(dictionary, this.configuration) && Utils.same(controllerFactory, this.serverControllerFactory)) {
+			LOG.debug("No change in configuration of Pax Web Runtime.");
 			return;
+		}
+
+		if (serverModel != null) {
+			serverModel.setStopping();
+			serverModel = null;
+		}
+
+		this.configuration = dictionary;
+		boolean hadSCF = this.serverControllerFactory != null;
+		ServerControllerFactory previousServerControllerFactory = this.serverControllerFactory;
+		this.serverControllerFactory = controllerFactory;
+
+		cleanUpHttpServiceRegistrations();
+//		if (managedServiceFactoryReg != null) {
+//			managedServiceFactoryReg.unregister();
+//			managedServiceFactoryReg = null;
+//		}
+		if (serverController != null) {
+			LOG.info("Stopping current server controller {}", serverController);
+			try {
+				serverController.stop();
+			} catch (Exception e) {
+				LOG.error("Problem stopping server controller: " + e.getMessage(), e);
+			}
+			if (previousServerControllerFactory != null) {
+				previousServerControllerFactory.releaseServerController(serverController, serverController.getConfiguration());
+			}
+			serverController = null;
+		}
+
+		if (serverControllerFactory == null) {
+			if (hadSCF) {
+				LOG.info("ServerControllerFactory is gone, HTTP Service is not available now.");
+			}
+			return;
+		}
+
+		// proceed with possibly non-empty (non-default) configuration and with available ServerControllerFactory
+		// configuration from PID (if available) has higher priority than properties from BundleContext / MetaType
+		performConfiguration();
+	}
+
+	/**
+	 * Actual configuration method called only when {@link ServerControllerFactory} is added.
+	 */
+	@PaxWebConfiguration
+	private void performConfiguration() {
+		try {
+			// Configure chained PropertyResolver to get properties from Config Admin, Bundle Context, Meta Type
+			// information (in such order).
+			// Properties as map will also be available in proper order
+
+			Map<String, String> allProperties = new HashMap<>(System.getenv());
+			allProperties.putAll(Utils.toMap(System.getProperties()));
+
+			MetaTypePropertyResolver defaultResolver = new MetaTypePropertyResolver();
+			allProperties.putAll(Utils.toMap(defaultResolver.getProperties()));
+
+			// can't get all bundle context properties as map...
+			PropertyResolver tmpResolver = new BundleContextPropertyResolver(bundleContext, defaultResolver);
+
+			PropertyResolver resolver = this.configuration != null ? new DictionaryPropertyResolver(this.configuration, tmpResolver) : tmpResolver;
+			allProperties.putAll(Utils.toMap(this.configuration));
+
+			// before creating a configuration, we have to check if the encryption is enabled - and there are two
+			// ways to implement the decryption
+			String enabled = allProperties.get(PaxWebConfig.PID_CFG_ENC_ENABLED);
+			if ("true".equalsIgnoreCase(enabled)) {
+				if (!Utils.isJasyptAvailable(this.getClass())) {
+					LOG.warn("Encryption is enabled, but Jasypt bundle is not available. Decryption of configuration values won't be performed.");
+				} else {
+					String decryptor = allProperties.get(PaxWebConfig.PID_CFG_ENC_OSGI_DECRYPTOR);
+					if (decryptor != null && !"".equals(decryptor)) {
+						// 1. We can obtain an OSGi service of org.jasypt.encryption.StringEncryptor
+						LOG.info("Encryption is enabled and Jasypt encryptor with ID \"{}\" will be looked up in OSGi registry",
+								decryptor);
+						String filter = String.format("(&(%s=%s)(decryptor=%s))",
+								Constants.OBJECTCLASS, "org.jasypt.encryption.StringEncryptor", decryptor);
+
+						synchronized (JasyptCustomizer.class) {
+							if (jasyptTracker != null) {
+								jasyptTracker.close();
+								jasyptTracker = null;
+							}
+							jasyptTracking.set(true);
+							try {
+								jasyptTracker = new ServiceTracker<>(bundleContext, bundleContext.createFilter(filter), new JasyptCustomizer());
+								jasyptTracker.open();
+								Object encryptor = jasyptTracker.getService();
+								if (encryptor != null) {
+									resolver = SecurePropertyResolver.wrap(resolver, encryptor);
+								} else {
+									LOG.info("Jasypt encryptor with ID \"{}\" is not found in OSGi registry." +
+											" Pax Web configuration will be performed after it becomes available.", decryptor);
+									return;
+								}
+							} finally {
+								jasyptTracking.set(false);
+							}
+						}
+					} else {
+						// 2. We can configure our own org.jasypt.encryption.StringEncryptor
+						LOG.info("Encryption is enabled and pax-web-runtime will configure Jasypt encryptor");
+						boolean foundPassword = false;
+						String env = allProperties.get(PaxWebConfig.PID_CFG_ENC_MASTERPASSWORD_ENV);
+						if (env != null && !"".equals(env)) {
+							LOG.debug("Environment variable \"{}\" will be used to obtain the master password", env);
+							foundPassword = true;
+						}
+						String sys = allProperties.get(PaxWebConfig.PID_CFG_ENC_MASTERPASSWORD_SYS);
+						if (sys != null && !"".equals(sys)) {
+							LOG.debug("System property \"{}\" will be used to obtain the master password", sys);
+							foundPassword = true;
+						}
+						String password = allProperties.get(PaxWebConfig.PID_CFG_ENC_MASTERPASSWORD);
+						if (password != null && !"".equals(password)) {
+//							LOG.debug("Master password was specified in the configuration");
+							foundPassword = true;
+						}
+
+						if (!foundPassword) {
+							LOG.warn("No master password was provided. Decryption of configuration values won't be performed.");
+						} else {
+							resolver = SecurePropertyResolver.wrap(resolver);
+						}
+					}
+				}
+			}
+
+			// full configuration with all required properties. That's all that is needed down the stream
+			final Configuration configuration = ConfigurationBuilder.getConfiguration(resolver, allProperties);
+
+			webElementEventDispatcher = new WebElementEventDispatcher(bundleContext, configuration);
+
+			// global, single representation of web server state. It's used
+			//  - in all bundle-scoped instances of HttpServiceEnabled
+			//  - also to reflect Whiteboard registrations (through pax-web-extender-whiteboard)
+			serverModel = new ServerModel(runtimeExecutor, registrationThreadId);
+
+			// create a controller object to operate on any supported web server
+			serverController = serverControllerFactory.createServerController(configuration);
+			// immediately add current ServerListeners.
+			serverListeners.forEach(listener -> serverController.addListener(listener));
+
+			// first step is to configure the server without actually starting it
+			LOG.info("Configuring server controller {}", serverController.getClass().getName());
+			serverController.configure();
+
+			LOG.info("Starting server controller {}", serverController.getClass().getName());
+			serverController.start();
+
+			// this is where org.osgi.service.http.HttpService bundle-scoped service is registered in OSGi
+			// this is the most fundamental operation related to Http Service specification
+			Dictionary<String, Object> props = determineServiceProperties(configuration);
+			ServiceFactory<StoppableHttpService> factory = new StoppableHttpServiceFactory(serverController, serverModel,
+					webElementEventDispatcher) {
+				@Override
+				StoppableHttpService createService(Bundle bundle, ServerController serverController,
+						ServerModel serverModel, WebElementEventDispatcher webElementEventDispatcher) {
+					HttpServiceEnabled enabledService =
+							new HttpServiceEnabled(bundle, serverController, serverModel,
+									webElementEventDispatcher, configuration);
+
+					return new HttpServiceProxy(bundle, enabledService);
+				}
+			};
+
+			// this registration is performed inside configuration thread. It may invoke service listeners
+			// awaiting HttpService/WebContainer to start registering web elements, which call configuration
+			// thread again - this time without waiting (same thread)
+			// but this caused a problem in pax-web-extender-whiteboard which has it's own lock.
+			// that's why pax-web-extender-whiteboard should not get the lock after its service listener is called
+			LOG.info("Registering HttpService factory");
+			httpServiceFactoryReg = bundleContext.registerService(HTTPSERVICE_REGISTRATION_NAMES, factory, props);
+
+			LOG.info("Registering HttpServiceRuntime");
+			// see Table 140.9 Service properties for the HttpServiceRuntime service
+			props = new Hashtable<>();
+			// we'll set this propery later through ServerListener
+			props.put(HttpServiceRuntimeConstants.HTTP_SERVICE_ENDPOINT, "/");
+			Long httpServiceId = (Long) httpServiceFactoryReg.getReference().getProperty(Constants.SERVICE_ID);
+			props.put(HttpServiceRuntimeConstants.HTTP_SERVICE_ID, Collections.singletonList(httpServiceId));
+			// SERVICE_CHANGECOUNT is 1.9 OSGi Core addition, so use literal please
+//			props.put(Constants.SERVICE_CHANGECOUNT, 0L);
+			props.put("service.changecount", 0L);
+			httpServiceRuntimeReg = bundleContext.registerService(HttpServiceRuntime.class, serverModel, props);
+
+			// "template" ServiceReferenceDTO for HttpServiceRuntime, however it has to be updated:
+			// - when "service.changecount" increases
+			// - when target runtime is started/stopped to update "osgi.http.endpoint"
+			// However Figure 140.3 Runtime DTO Overview Diagram doesn mention this field in RuntimeDTO at all...
+			ServiceReferenceDTO httpServiceRuntimeDTO = new ServiceReferenceDTO();
+			httpServiceRuntimeDTO.id = (long) httpServiceRuntimeReg.getReference().getProperty(Constants.SERVICE_ID);
+			httpServiceRuntimeDTO.bundle = bundleContext.getBundle().getBundleId();
+			httpServiceRuntimeDTO.properties = new HashMap<>();
+			httpServiceRuntimeDTO.properties.put(HttpServiceRuntimeConstants.HTTP_SERVICE_ENDPOINT, "/");
+			httpServiceRuntimeDTO.properties.put(HttpServiceRuntimeConstants.HTTP_SERVICE_ID, Collections.singletonList(httpServiceId));
+			httpServiceRuntimeDTO.properties.put("service.changecount", 0L);
+			// initially "usingBundles" is empty and we'll be setting it on every
+			httpServiceRuntimeDTO.usingBundles = new long[0];
+			// we'll set the template into ServerModel, so it's available from there, when creating full RuntimeDTO
+			serverModel.setHttpServiceRuntimeInformation(httpServiceRuntimeReg, httpServiceRuntimeDTO);
+
+			// added listener is immediately called with the current state
+			serverController.addListener(new AddressConfiguration());
+
+			if (Utils.isConfigurationAdminAvailable(this.getClass())) {
+				// ManagedServiceFactory for org.ops4j.pax.web.context factory PID
+				// we need registered WebContainer for this MSF to work
+				createManagedServiceFactory(bundleContext, serverController);
+			}
+		} catch (Throwable t) {
+			try {
+				Bundle bundle = bundleContext.getBundle();
+				if (bundle.getState() == Bundle.STOPPING || bundle.getState() == Bundle.UNINSTALLED) {
+					return;
+				}
+				LOG.error("Unable to start Pax Web server: {}", t.getMessage(), t);
+			} catch (IllegalStateException ignored) {
+			}
+		}
+	}
+
+	private void cleanUpHttpServiceRegistrations() {
+		if (httpServiceRuntimeReg != null) {
+			LOG.info("Unregistering current HttpServiceRuntime");
+			httpServiceRuntimeReg.unregister();
+			httpServiceRuntimeReg = null;
 		}
 		if (httpServiceFactoryReg != null) {
+			LOG.info("Unregistering current HttpService factory");
 			httpServiceFactoryReg.unregister();
 			httpServiceFactoryReg = null;
+		}
+		if (httpContextProcessing != null) {
+			httpContextProcessing.destroy();
+			httpContextProcessing = null;
 		}
 		if (managedServiceFactoryReg != null) {
 			managedServiceFactoryReg.unregister();
 			managedServiceFactoryReg = null;
 		}
-		if (serverController != null) {
-			serverController.stop();
-			serverController = null;
-		}
-		if (controllerFactory != null) {
-			try {
-				final PropertyResolver tmpResolver = new BundleContextPropertyResolver(
-						bundleContext, new DefaultPropertyResolver());
-				final PropertyResolver resolver = dictionary != null
-						? new DictionaryPropertyResolver(dictionary, tmpResolver)
-						: tmpResolver;
-
-				final ConfigurationImpl configuration = new ConfigurationImpl(resolver);
-				if (dictionary != null) {
-					// PAXWEB-1169: dictionary comes directly from configadmin.
-					// however, org.ops4j.util.property.PropertyStore.m_properties gets also filled after
-					// calling org.ops4j.util.property.PropertyStore.set() in every getXXX() method of
-					// ConfigurationImpl...
-					// For now, the dictionary is set from configadmin only and not from unpredictable state of
-					// PropertyStore.m_properties (which over time may contain default values for properties
-					// which are not found in PropertyResolver passed to the configurationImpl object)
-					configuration.setDictionary(dictionary);
-				}
-				final ServerModel serverModel = new ServerModel();
-
-				serverController = controllerFactory.createServerController(serverModel);
-				serverController.configure(configuration);
-
-				Dictionary<String, Object> props = determineServiceProperties(
-						dictionary, configuration,
-						serverController.getHttpPort(),
-						serverController.getHttpSecurePort());
-				// register a SCOPE_BUNDLE ServiceFactory - every bundle will have their
-				// own HttpService/WebContainer
-				httpServiceFactoryReg = bundleContext.registerService(
-						new String[] { HttpService.class.getName(), WebContainer.class.getName() },
-						new HttpServiceFactoryImpl() {
-							@Override
-							HttpService createService(final Bundle bundle) {
-								return new HttpServiceProxy(new HttpServiceStarted(
-										bundle, serverController, serverModel,
-										servletEventDispatcher, configuration.get(PROPERTY_SHOW_STACKS)));
-							}
-						}, props);
-
-				if (!serverController.isStarted()) {
-					while (!serverController.isConfigured()) {
-						try {
-							Thread.sleep(100);
-						} catch (InterruptedException e) {
-							LOG.warn("caught interruptexception while waiting for configuration", e);
-							Thread.currentThread().interrupt();
-							return;
-						}
-					}
-					LOG.info("Starting server controller {}", serverController.getClass().getName());
-					serverController.start();
-				}
-
-				// ManagedServiceFactory for org.ops4j.pax.web.context factory PID
-				// we need registered WebContainer for this MSF to work
-				createManagedServiceFactory(bundleContext);
-				//CHECKSTYLE:OFF
-			} catch (Throwable t) {
-				// TODO: ignore those exceptions if the bundle is being stopped
-				LOG.error("Unable to start pax web server: " + t.getMessage(), t);
-			}
-			//CHECKSTYLE:ON
-		} else {
-			LOG.info("ServerControllerFactory is gone, HTTP Service is not available now.");
-		}
-		this.factory = controllerFactory;
-		this.config = dictionary;
 	}
 
-	private Dictionary<String, Object> determineServiceProperties(
-			final Dictionary<String, ?> managedConfig,
-			final Configuration configuration, final Integer httpPort,
-			final Integer httpSecurePort) {
+	/**
+	 * Pass properties used to configure {@link HttpService} to service registration.
+	 *
+	 * @param configuration
+	 * @return
+	 *
+	 * @since 0.6.0, PAXWEB-127
+	 */
+	private Dictionary<String, Object> determineServiceProperties(final Configuration configuration) {
+		final Hashtable<String, Object> properties = new Hashtable<>();
 
-		final Hashtable<String, Object> toPropagate = new Hashtable<>();
-		// first store all configuration properties as received via managed
-		// service
-		if (managedConfig != null && !managedConfig.isEmpty()) {
-			final Enumeration<String> enumeration = managedConfig.keys();
-			while (enumeration.hasMoreElements()) {
-				String key = enumeration.nextElement();
-				toPropagate.put(key, managedConfig.get(key));
-			}
-		}
+		// configuration already collects the properties from env/system/context properties and also from
+		// metatype config and configadmin
 
-		// then add/replace configuration properties
-		setProperty(toPropagate, PROPERTY_HTTP_ENABLED, configuration.isHttpEnabled());
-		setProperty(toPropagate, PROPERTY_HTTP_PORT, configuration.getHttpPort());
-		setProperty(toPropagate, PROPERTY_HTTP_CONNECTOR_NAME,
-				configuration.getHttpConnectorName());
-		setProperty(toPropagate, PROPERTY_HTTP_SECURE_ENABLED,
-				configuration.isHttpSecureEnabled());
-		setProperty(toPropagate, PROPERTY_HTTP_SECURE_PORT,
-				configuration.getHttpSecurePort());
-		setProperty(toPropagate, PROPERTY_HTTP_SECURE_CONNECTOR_NAME,
-				configuration.getHttpSecureConnectorName());
-		setProperty(toPropagate, PROPERTY_HTTP_USE_NIO, configuration.useNIO());
-		setProperty(toPropagate, PROPERTY_SSL_CLIENT_AUTH_NEEDED,
-				configuration.isClientAuthNeeded());
-		setProperty(toPropagate, PROPERTY_SSL_CLIENT_AUTH_WANTED,
-				configuration.isClientAuthWanted());
-		setProperty(toPropagate, PROPERTY_SSL_KEYSTORE, configuration.getSslKeystore());
-		setProperty(toPropagate, PROPERTY_SSL_KEYSTORE_TYPE,
-				configuration.getSslKeystoreType());
-		setProperty(toPropagate, PROPERTY_SSL_PASSWORD, configuration.getSslPassword());
-		setProperty(toPropagate, PROPERTY_SSL_KEYPASSWORD,
-				configuration.getSslKeyPassword());
-		setProperty(toPropagate, PROPERTY_CIPHERSUITE_INCLUDED, configuration.getCiphersuiteIncluded());
-		setProperty(toPropagate, PROPERTY_CIPHERSUITE_EXCLUDED, configuration.getCiphersuiteExcluded());
-		setProperty(toPropagate, PROPERTY_SSL_RENEGOTIATION_ALLOWED, configuration.isSslRenegotiationAllowed());
-		setProperty(toPropagate, PROPERTY_TEMP_DIR,
-				configuration.getTemporaryDirectory());
-		setProperty(toPropagate, PROPERTY_SESSION_TIMEOUT,
-				configuration.getSessionTimeout());
-		setProperty(toPropagate, PROPERTY_SESSION_URL, configuration.getSessionUrl());
-		setProperty(toPropagate, PROPERTY_SESSION_COOKIE,
-				configuration.getSessionCookie());
-		setProperty(toPropagate, PROPERTY_SESSION_DOMAIN,
-				configuration.getSessionDomain());
-		setProperty(toPropagate, PROPERTY_SESSION_PATH,
-				configuration.getSessionPath());
-		setProperty(toPropagate, PROPERTY_SESSION_COOKIE_SECURE,
-				configuration.getSessionCookieSecure());
-		setProperty(toPropagate, PROPERTY_WORKER_NAME, configuration.getWorkerName());
-		setProperty(toPropagate, PROPERTY_LISTENING_ADDRESSES,
-				configuration.getListeningAddresses());
-		setProperty(toPropagate, PROPERTY_DEFAULT_AUTHMETHOD,
-				configuration.getDefaultAuthMethod());
-		setProperty(toPropagate, PROPERTY_DEFAULT_REALMNAME,
-				configuration.getDefaultRealmName());
-		setProperty(toPropagate, PROPERTY_SHOW_STACKS,
-				configuration.isShowStacks());
+		ServerConfiguration sc = configuration.server();
+		setProperty(properties, PaxWebConfig.PID_CFG_HTTP_ENABLED, sc.isHttpEnabled());
+		setProperty(properties, PaxWebConfig.PID_CFG_HTTP_PORT, sc.getHttpPort());
+		setProperty(properties, PaxWebConfig.PID_CFG_HTTP_SECURE_ENABLED, sc.isHttpSecureEnabled());
+		setProperty(properties, PaxWebConfig.PID_CFG_HTTP_PORT_SECURE, sc.getHttpSecurePort());
+		// only relevant for Jetty
+		setProperty(properties, PaxWebConfig.PID_CFG_HTTP_CONNECTOR_NAME, sc.getHttpConnectorName());
+		// only relevant for Jetty
+		setProperty(properties, PaxWebConfig.PID_CFG_HTTP_SECURE_CONNECTOR_NAME, sc.getHttpSecureConnectorName());
+		setProperty(properties, PaxWebConfig.PID_CFG_LISTENING_ADDRESSES, sc.getListeningAddresses());
+		setProperty(properties, PaxWebConfig.PID_CFG_CONNECTOR_IDLE_TIMEOUT, sc.getConnectorIdleTimeout());
+		setProperty(properties, PaxWebConfig.PID_CFG_SERVER_IDLE_TIMEOUT, sc.getServerIdleTimeout());
+		setProperty(properties, PaxWebConfig.PID_CFG_SERVER_MAX_THREADS, sc.getServerMaxThreads());
+		setProperty(properties, PaxWebConfig.PID_CFG_SERVER_MIN_THREADS, sc.getServerMinThreads());
+		setProperty(properties, PaxWebConfig.PID_CFG_SERVER_THREAD_NAME_PREFIX, sc.getServerThreadNamePrefix());
+		setProperty(properties, PaxWebConfig.PID_CFG_SHOW_STACKS, sc.isShowStacks());
+		setProperty(properties, PaxWebConfig.PID_CFG_EVENT_DISPATCHER_THREAD_COUNT, sc.getEventDispatcherThreadCount());
+		setProperty(properties, PaxWebConfig.PID_CFG_HTTP_CHECK_FORWARDED_HEADERS, sc.checkForwardedHeaders());
+		setProperty(properties, PaxWebConfig.PID_CFG_TEMP_DIR, sc.getTemporaryDirectory());
+		setProperty(properties, PaxWebConfig.PID_CFG_HTTP_CHECK_FORWARDED_HEADERS, sc.checkForwardedHeaders());
+		setProperty(properties, PaxWebConfig.PID_CFG_SERVER_CONFIGURATION_FILES, sc.getConfigurationFiles());
 
-		// then replace ports
-		setProperty(toPropagate, PROPERTY_HTTP_PORT, httpPort);
-		setProperty(toPropagate, PROPERTY_HTTP_SECURE_PORT, httpSecurePort);
+		LogConfiguration lc = configuration.logging();
+		setProperty(properties, PaxWebConfig.PID_CFG_LOG_NCSA_ENABLED, lc.isLogNCSAFormatEnabled());
+		setProperty(properties, PaxWebConfig.PID_CFG_LOG_NCSA_LOGDIR, lc.getLogNCSADirectory());
+		setProperty(properties, PaxWebConfig.PID_CFG_LOG_NCSA_LOGFILE, lc.getLogNCSAFile());
+		setProperty(properties, PaxWebConfig.PID_CFG_LOG_NCSA_APPEND, lc.isLogNCSAAppend());
+		setProperty(properties, PaxWebConfig.PID_CFG_LOG_NCSA_LOGFILE_DATE_FORMAT, lc.getLogNCSAFilenameDateFormat());
+		setProperty(properties, PaxWebConfig.PID_CFG_LOG_NCSA_RETAINDAYS, lc.getLogNCSARetainDays());
+		setProperty(properties, PaxWebConfig.PID_CFG_LOG_NCSA_EXTENDED, lc.isLogNCSAExtended());
+		setProperty(properties, PaxWebConfig.PID_CFG_LOG_NCSA_LOGTIMEZONE, lc.getLogNCSATimeZone());
+		setProperty(properties, PaxWebConfig.PID_CFG_LOG_NCSA_BUFFERED, lc.getLogNCSABuffered());
 
-		// then add/replace configuration properties for external jetty.xml file
-		setProperty(toPropagate, PROPERTY_SERVER_CONFIGURATION_FILE,
-				configuration.getConfigurationDir());
+		SessionConfiguration sess = configuration.session();
+		setProperty(properties, PaxWebConfig.PID_CFG_SESSION_TIMEOUT, sess.getSessionTimeout());
+		setProperty(properties, PaxWebConfig.PID_CFG_SESSION_COOKIE_NAME, sess.getSessionCookieName());
+		setProperty(properties, PaxWebConfig.PID_CFG_SESSION_COOKIE_DOMAIN, sess.getSessionCookieDomain());
+		setProperty(properties, PaxWebConfig.PID_CFG_SESSION_COOKIE_PATH, sess.getSessionCookiePath());
+		setProperty(properties, PaxWebConfig.PID_CFG_SESSION_COOKIE_COMMENT, sess.getSessionCookieComment());
+		setProperty(properties, PaxWebConfig.PID_CFG_SESSION_COOKIE_HTTP_ONLY, sess.getSessionCookieHttpOnly());
+		setProperty(properties, PaxWebConfig.PID_CFG_SESSION_COOKIE_SECURE, sess.getSessionCookieSecure());
+		setProperty(properties, PaxWebConfig.PID_CFG_SESSION_COOKIE_MAX_AGE, sess.getSessionCookieMaxAge());
+		setProperty(properties, PaxWebConfig.PID_CFG_SESSION_COOKIE_SAME_SITE, sess.getSessionCookieSameSite());
+		setProperty(properties, PaxWebConfig.PID_CFG_SESSION_URL, sess.getSessionUrlPathParameter());
+		setProperty(properties, PaxWebConfig.PID_CFG_SESSION_WORKER_NAME, sess.getSessionWorkerName());
+		setProperty(properties, PaxWebConfig.PID_CFG_SESSION_STORE_DIRECTORY, sess.getSessionStoreDirectoryLocation());
 
-		setProperty(toPropagate, PROPERTY_SERVER_CONFIGURATION_URL,
-				configuration.getConfigurationURL());
+		ResourceConfiguration res = configuration.resources();
+//		setProperty(toPropagate, PaxWebConfig.PID_CFG_DEFAULT_SERVLET_ACCEPT_RANGES, res.acceptRanges());
+//		setProperty(toPropagate, PaxWebConfig.PID_CFG_DEFAULT_SERVLET_REDIRECT_WELCOME, res.redirectWelcome());
+//		setProperty(toPropagate, PaxWebConfig.PID_CFG_DEFAULT_SERVLET_DIR_LISTING, res.dirListing());
+//		setProperty(toPropagate, PaxWebConfig.PID_CFG_DEFAULT_SERVLET_CACHE_MAX_ENTRIES, res.maxCacheEntries());
+//		setProperty(toPropagate, PaxWebConfig.PID_CFG_DEFAULT_SERVLET_CACHE_MAX_ENTRY_SIZE, res.maxCacheEntrySize());
+//		setProperty(toPropagate, PaxWebConfig.PID_CFG_DEFAULT_SERVLET_CACHE_MAX_ENTRIES, res.maxTotalCacheSize());
+//		setProperty(toPropagate, PaxWebConfig.PID_CFG_DEFAULT_SERVLET_CACHE_TTL, res.maxCacheTTL());
 
-		// Request Log - e.g NCSA log
-		setProperty(toPropagate, PROPERTY_LOG_NCSA_FORMAT,
-				configuration.getLogNCSAFormat());
-		setProperty(toPropagate, PROPERTY_LOG_NCSA_RETAINDAYS,
-				configuration.getLogNCSARetainDays());
-		setProperty(toPropagate, PROPERTY_LOG_NCSA_APPEND,
-				configuration.isLogNCSAAppend());
-		setProperty(toPropagate, PROPERTY_LOG_NCSA_EXTENDED,
-				configuration.isLogNCSAExtended());
-		setProperty(toPropagate, PROPERTY_LOG_NCSA_DISPATCH,
-				configuration.isLogNCSADispatch());
-		setProperty(toPropagate, PROPERTY_LOG_NCSA_DISPATCH,
-				configuration.isLogNCSADispatch());
-		setProperty(toPropagate, PROPERTY_LOG_NCSA_LOGTIMEZONE,
-				configuration.getLogNCSATimeZone());
-		setProperty(toPropagate, PROPERTY_CRL_PATH,
-                            configuration.getCrlPath());
-		setProperty(toPropagate, PROPERTY_ENABLE_CRLDP,
-                            configuration.isEnableCRLDP());
-		setProperty(toPropagate, PROPERTY_VALIDATE_CERTS,
-                            configuration.isValidateCerts());
-		setProperty(toPropagate, PROPERTY_VALIDATE_PEER_CERTS,
-                            configuration.isValidatePeerCerts());
-		setProperty(toPropagate, PROPERTY_ENABLE_OCSP,
-                            configuration.isEnableOCSP());
-		setProperty(toPropagate, PROPERTY_OCSP_RESPONDER_URL,
-                            configuration.getOcspResponderURL());
-		setProperty(toPropagate, PROPERTY_ENC_ENABLED,
-                            configuration.isEncEnabled());
-		setProperty(toPropagate, PROPERTY_ENC_MASTERPASSWORD,
-                            configuration.getEncMasterPassword());
-		setProperty(toPropagate, PROPERTY_ENC_ALGORITHM,
-                            configuration.getEncAlgorithm());
-		setProperty(toPropagate, PROPERTY_ENC_PREFIX,
-                            configuration.getEncPrefix());
-		setProperty(toPropagate, PROPERTY_ENC_SUFFIX,
-                            configuration.getEncSuffix());
+		JspConfiguration jsp = configuration.jsp();
+		setProperty(properties, PaxWebConfig.PID_CFG_JSP_SCRATCH_DIR, jsp.getGloablJspScratchDir());
 
-		if (SupportUtils.isJSPAvailable()) {
-			setProperty(toPropagate, PROPERTY_JSP_CHECK_INTERVAL,
-					configuration.getJspCheckInterval());
-			setProperty(toPropagate, PROPERTY_JSP_DEBUG_INFO,
-					configuration.getJspClassDebugInfo());
-			setProperty(toPropagate, PROPERTY_JSP_DEVELOPMENT,
-					configuration.getJspDevelopment());
-			setProperty(toPropagate, PROPERTY_JSP_ENABLE_POOLING,
-					configuration.getJspEnablePooling());
-			setProperty(toPropagate, PROPERTY_JSP_IE_CLASS_ID,
-					configuration.getJspIeClassId());
-			setProperty(toPropagate, PROPERTY_JSP_JAVA_ENCODING,
-					configuration.getJspJavaEncoding());
-			setProperty(toPropagate, PROPERTY_JSP_KEEP_GENERATED,
-					configuration.getJspKeepgenerated());
-			setProperty(toPropagate, PROPERTY_JSP_LOG_VERBOSITY_LEVEL,
-					configuration.getJspLogVerbosityLevel());
-			setProperty(toPropagate, PROPERTY_JSP_MAPPED_FILE,
-					configuration.getJspMappedfile());
-			setProperty(toPropagate, PROPERTY_JSP_SCRATCH_DIR,
-					configuration.getJspScratchDir());
-			setProperty(toPropagate, PROPERTY_JSP_TAGPOOL_MAX_SIZE,
-					configuration.getJspTagpoolMaxSize());
-			setProperty(toPropagate, PROPERTY_JSP_PRECOMPILATION,
-					configuration.getJspPrecompilation());
-		}
+		SecurityConfiguration sec = configuration.security();
+		setProperty(properties, PaxWebConfig.PID_CFG_SSL_PROVIDER, sec.getSslProvider());
+		setProperty(properties, PaxWebConfig.PID_CFG_SSL_KEYSTORE, sec.getSslKeystore());
+		setProperty(properties, PaxWebConfig.PID_CFG_SSL_KEYSTORE_PASSWORD, "********"/*sec.getSslKeystorePassword()*/);
+		setProperty(properties, PaxWebConfig.PID_CFG_SSL_KEY_PASSWORD, "********"/*sec.getSslKeyPassword()*/);
+		setProperty(properties, PaxWebConfig.PID_CFG_SSL_KEYSTORE_TYPE, sec.getSslKeystoreType());
+		setProperty(properties, PaxWebConfig.PID_CFG_SSL_KEYSTORE_PROVIDER, sec.getSslKeystoreProvider());
+		setProperty(properties, PaxWebConfig.PID_CFG_SSL_KEY_MANAGER_FACTORY_ALGORITHM, sec.getSslKeyManagerFactoryAlgorithm());
+		setProperty(properties, PaxWebConfig.PID_CFG_SSL_KEY_ALIAS, sec.getSslKeyAlias());
+		setProperty(properties, PaxWebConfig.PID_CFG_SSL_TRUSTSTORE, sec.getTruststore());
+		setProperty(properties, PaxWebConfig.PID_CFG_SSL_TRUSTSTORE_PASSWORD, "********"/*sec.getTruststorePassword()*/);
+		setProperty(properties, PaxWebConfig.PID_CFG_SSL_TRUSTSTORE_TYPE, sec.getTruststoreType());
+		setProperty(properties, PaxWebConfig.PID_CFG_SSL_TRUSTSTORE_PROVIDER, sec.getTruststoreProvider());
+		setProperty(properties, PaxWebConfig.PID_CFG_SSL_TRUST_MANAGER_FACTORY_ALGORITHM, sec.getTrustManagerFactoryAlgorithm());
+		setProperty(properties, PaxWebConfig.PID_CFG_SSL_CLIENT_AUTH_WANTED, sec.isClientAuthWanted());
+		setProperty(properties, PaxWebConfig.PID_CFG_SSL_CLIENT_AUTH_NEEDED, sec.isClientAuthNeeded());
+		setProperty(properties, PaxWebConfig.PID_CFG_SSL_PROTOCOL, sec.getSslProtocol());
+		setProperty(properties, PaxWebConfig.PID_CFG_SSL_SECURE_RANDOM_ALGORITHM, sec.getSecureRandomAlgorithm());
+		setProperty(properties, PaxWebConfig.PID_CFG_PROTOCOLS_INCLUDED, sec.getProtocolsIncluded());
+		setProperty(properties, PaxWebConfig.PID_CFG_PROTOCOLS_EXCLUDED, sec.getProtocolsExcluded());
+		setProperty(properties, PaxWebConfig.PID_CFG_CIPHERSUITES_INCLUDED, sec.getCiphersuiteIncluded());
+		setProperty(properties, PaxWebConfig.PID_CFG_CIPHERSUITES_EXCLUDED, sec.getCiphersuiteExcluded());
+		setProperty(properties, PaxWebConfig.PID_CFG_SSL_RENEGOTIATION_ALLOWED, sec.isSslRenegotiationAllowed());
+		setProperty(properties, PaxWebConfig.PID_CFG_SSL_RENEGOTIATION_LIMIT, sec.getSslRenegotiationLimit());
+		setProperty(properties, PaxWebConfig.PID_CFG_SSL_SESSION_ENABLED, sec.getSslSessionsEnabled());
+		setProperty(properties, PaxWebConfig.PID_CFG_SSL_SESSION_CACHE_SIZE, sec.getSslSessionCacheSize());
+		setProperty(properties, PaxWebConfig.PID_CFG_SSL_SESSION_TIMEOUT, sec.getSslSessionTimeout());
+		setProperty(properties, PaxWebConfig.PID_CFG_VALIDATE_CERTS, sec.isValidateCerts());
+		setProperty(properties, PaxWebConfig.PID_CFG_VALIDATE_PEER_CERTS, sec.isValidatePeerCerts());
+		setProperty(properties, PaxWebConfig.PID_CFG_ENABLE_OCSP, sec.isEnableOCSP());
+		setProperty(properties, PaxWebConfig.PID_CFG_ENABLE_CRLDP, sec.isEnableCRLDP());
+		setProperty(properties, PaxWebConfig.PID_CFG_CRL_PATH, sec.getCrlPath());
+		setProperty(properties, PaxWebConfig.PID_CFG_OCSP_RESPONDER_URL, sec.getOcspResponderURL());
+		setProperty(properties, PaxWebConfig.PID_CFG_MAX_CERT_PATH_LENGTH, sec.getMaxCertPathLength());
+		setProperty(properties, PaxWebConfig.PID_CFG_DIGESTAUTH_MAX_NONCE_AGE, sec.getDigestAuthMaxNonceAge());
+		setProperty(properties, PaxWebConfig.PID_CFG_DIGESTAUTH_MAX_NONCE_COUNT, sec.getDigestAuthMaxNonceCount());
+		setProperty(properties, PaxWebConfig.PID_CFG_FORMAUTH_REDIRECT, sec.getFormAuthRedirect());
 
-		return toPropagate;
+		setProperty(properties, PaxWebConfig.PID_CFG_ENC_ENABLED, sec.isEncEnabled());
+		setProperty(properties, PaxWebConfig.PID_CFG_ENC_MASTERPASSWORD, "********"/*sec.getEncMasterPassword()*/);
+		setProperty(properties, PaxWebConfig.PID_CFG_ENC_MASTERPASSWORD_ENV, sec.getEncMasterPasswordEnvVariable());
+		setProperty(properties, PaxWebConfig.PID_CFG_ENC_MASTERPASSWORD_SYS, sec.getEncMasterPasswordSystemProperty());
+		setProperty(properties, PaxWebConfig.PID_CFG_ENC_PROVIDER, sec.getEncProvider());
+		setProperty(properties, PaxWebConfig.PID_CFG_ENC_ALGORITHM, sec.getEncAlgorithm());
+		setProperty(properties, PaxWebConfig.PID_CFG_ENC_ITERATION_COUNT, sec.getEncIterationCount());
+		setProperty(properties, PaxWebConfig.PID_CFG_ENC_PREFIX, sec.getEncPrefix());
+		setProperty(properties, PaxWebConfig.PID_CFG_ENC_SUFFIX, sec.getEncSuffix());
+		setProperty(properties, PaxWebConfig.PID_CFG_ENC_OSGI_DECRYPTOR, sec.getEncOSGiDecryptorId());
+
+		return properties;
 	}
 
-	private void setProperty(final Hashtable<String, Object> properties,
-							 final String name, final Object value) {
+	private void setProperty(final Hashtable<String, Object> properties, final String name, final Object value) {
 		if (value != null) {
 			if (value instanceof File) {
 				properties.put(name, ((File) value).getAbsolutePath());
@@ -588,7 +797,11 @@ public class Activator implements BundleActivator {
 
 		for (int x = 0; x < (array.length - 1); x++) {
 			if (array[x] != null) {
-				sb.append(array[x].toString());
+				if (array[x] instanceof File) {
+					sb.append(((File) array[x]).getAbsolutePath());
+				} else {
+					sb.append(array[x].toString());
+				}
 			} else {
 				sb.append("null");
 			}
@@ -596,36 +809,118 @@ public class Activator implements BundleActivator {
 		}
 		sb.append(array[array.length - 1]);
 
-		return (sb.toString());
+		return sb.toString();
 	}
 
-	private class DynamicsServiceTrackerCustomizer
-			implements
-			ServiceTrackerCustomizer<ServerControllerFactory, ServerControllerFactory> {
+	/**
+	 * {@link ServiceTrackerCustomizer} to monitor {@link ServerControllerFactory} services.
+	 */
+	private class ServerControllerFactoryCustomizer implements ServiceTrackerCustomizer<ServerControllerFactory, ServerControllerFactory> {
 
 		@Override
-		public ServerControllerFactory addingService(
-				ServiceReference<ServerControllerFactory> reference) {
-			final ServerControllerFactory controllerFactory = bundleContext
-					.getService(reference);
-			scheduleUpdateFactory(controllerFactory);
+		public ServerControllerFactory addingService(ServiceReference<ServerControllerFactory> reference) {
+			final ServerControllerFactory controllerFactory = bundleContext.getService(reference);
+			updateServerControllerFactory(controllerFactory);
 			return controllerFactory;
 		}
 
 		@Override
-		public void modifiedService(
-				ServiceReference<ServerControllerFactory> reference,
-				ServerControllerFactory service) {
+		public void modifiedService(ServiceReference<ServerControllerFactory> reference, ServerControllerFactory service) {
+			// no need to process service properties change
 		}
 
 		@Override
-		public void removedService(
-				ServiceReference<ServerControllerFactory> reference,
-				ServerControllerFactory service) {
+		public void removedService(ServiceReference<ServerControllerFactory> reference, ServerControllerFactory service) {
 			if (bundleContext != null) {
 				bundleContext.ungetService(reference);
 			}
-			scheduleUpdateFactory(null);
+			updateServerControllerFactory(null);
+		}
+	}
+
+	private class ServerListenerCustomizer implements ServiceTrackerCustomizer<ServerListener, ServerListener> {
+
+		@Override
+		public ServerListener addingService(ServiceReference<ServerListener> reference) {
+			ServerListener service = bundleContext.getService(reference);
+			ServerController sc = serverController;
+			if (sc != null) {
+				serverListeners.add(service);
+				sc.addListener(service);
+			}
+			return service;
+		}
+
+		@Override
+		public void modifiedService(ServiceReference<ServerListener> reference, ServerListener service) {
+		}
+
+		@Override
+		public void removedService(ServiceReference<ServerListener> reference, ServerListener service) {
+			ServerController sc = serverController;
+			if (sc != null) {
+				sc.removeListener(service);
+				serverListeners.remove(service);
+			}
+			if (bundleContext != null) {
+				bundleContext.ungetService(reference);
+			}
+		}
+	}
+
+	/**
+	 * Customizer that simply reconfigures the runtime when Jasypt encryptor becomes available
+	 */
+	private class JasyptCustomizer implements ServiceTrackerCustomizer<Object, Object> {
+		@Override
+		public Object addingService(ServiceReference<Object> reference) {
+			synchronized (JasyptCustomizer.class) {
+				if (!jasyptTracking.get() && serverControllerFactory != null) {
+					performConfiguration();
+				}
+			}
+			return bundleContext.getService(reference);
+		}
+
+		@Override
+		public void modifiedService(ServiceReference<Object> reference, Object service) {
+		}
+
+		@Override
+		public void removedService(ServiceReference<Object> reference, Object service) {
+			if (!jasyptTracking.get() && serverControllerFactory != null) {
+				performConfiguration();
+			}
+			bundleContext.ungetService(reference);
+		}
+	}
+
+	/**
+	 * This listener alters the registration of {@link HttpServiceRuntime} properties
+	 */
+	private class AddressConfiguration implements ServerListener {
+		@Override
+		public void stateChanged(ServerEvent event) {
+			if (httpServiceRuntimeReg == null || httpServiceRuntimeReg.getReference() == null) {
+				return;
+			}
+			String[] props = httpServiceRuntimeReg.getReference().getPropertyKeys();
+			Dictionary<String, Object> newProps = new Hashtable<>();
+			for (String key : props) {
+				newProps.put(key, httpServiceRuntimeReg.getReference().getProperty(key));
+			}
+			if (event.getState() == ServerEvent.State.STARTED) {
+				String[] addresses = Arrays.stream(event.getAddresses())
+						.map(ia -> String.format("%s://%s:%d/", ia.isSecure() ? "https" : "http",
+								ia.getAddress().getAddress().getHostAddress(), ia.getAddress().getPort())).toArray(String[]::new);
+				newProps.put(HttpServiceRuntimeConstants.HTTP_SERVICE_ENDPOINT, addresses);
+				serverModel.getHttpServiceRuntimeDTO().properties.put(HttpServiceRuntimeConstants.HTTP_SERVICE_ENDPOINT, addresses);
+			} else {
+				newProps.put(HttpServiceRuntimeConstants.HTTP_SERVICE_ENDPOINT, "/");
+				serverModel.getHttpServiceRuntimeDTO().properties.put(HttpServiceRuntimeConstants.HTTP_SERVICE_ENDPOINT, "/");
+			}
+			// update the registration properties
+			httpServiceRuntimeReg.setProperties(newProps);
 		}
 	}
 

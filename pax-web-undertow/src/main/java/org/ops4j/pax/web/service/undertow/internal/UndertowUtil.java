@@ -17,6 +17,7 @@ package org.ops4j.pax.web.service.undertow.internal;
 
 import java.io.IOException;
 
+import io.undertow.Undertow;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.xnio.OptionMap;
@@ -24,18 +25,13 @@ import org.xnio.Options;
 import org.xnio.Xnio;
 import org.xnio.XnioWorker;
 
-import io.undertow.Undertow;
-
 public class UndertowUtil {
 
 	private static final Logger LOG = LoggerFactory.getLogger(UndertowUtil.class);
 
-	/**
-	 * Create an {@link XnioWorker} to be used by access log. It won't be configured using {@code <worker>}
-	 * in {@code undertow.xml}
-	 * @param loader
-	 * @return
-	 */
+	private UndertowUtil() {
+	}
+
 	public static XnioWorker createWorker(ClassLoader loader) {
 		try {
 			if (loader == null) {

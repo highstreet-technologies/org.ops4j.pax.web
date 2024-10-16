@@ -1,90 +1,78 @@
 /*
  * Copyright 2007 Alin Dreghiciu.
  *
- * Licensed  under the  Apache License,  Version 2.0  (the "License");
- * you may not use  this file  except in  compliance with the License.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
- * distributed  under the  License is distributed on an "AS IS" BASIS,
- * WITHOUT  WARRANTIES OR CONDITIONS  OF ANY KIND, either  express  or
- * implied.
- *
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
 package org.ops4j.pax.web.extender.whiteboard.internal.tracker;
 
-import org.ops4j.pax.web.extender.whiteboard.internal.ExtenderContext;
-import org.ops4j.pax.web.extender.whiteboard.internal.element.ResourceWebElement;
-import org.ops4j.pax.web.extender.whiteboard.internal.util.ServicePropertiesUtils;
-import org.ops4j.pax.web.extender.whiteboard.runtime.DefaultResourceMapping;
+import javax.servlet.Servlet;
+
+import org.ops4j.pax.web.extender.whiteboard.internal.WhiteboardExtenderContext;
+import org.ops4j.pax.web.service.spi.model.elements.ServletModel;
+import org.ops4j.pax.web.service.spi.model.events.ServletEventData;
+import org.ops4j.pax.web.service.spi.util.Utils;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.ServiceReference;
 import org.osgi.service.http.whiteboard.HttpWhiteboardConstants;
 import org.osgi.util.tracker.ServiceTracker;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
- * Tracks resource (service) registrations.
+ * Tracks OSGi services that should result in registration of a {@link javax.servlet.Servlet} acting as
+ * <em>default (resource) servlet - though mapped to any URL pattern(s).</em>
  *
  * @author Alin Dreghiciu
+ * @author Grzegorz Grzybek
  * @since 0.4.0, April 05, 2008
  */
-public class ResourceTracker extends AbstractTracker<Object, ResourceWebElement> {
+public class ResourceTracker extends AbstractElementTracker<Object, Servlet, ServletEventData, ServletModel> {
 
-	/**
-	 * Logger.
-	 */
-	private static final Logger LOG = LoggerFactory.getLogger(ResourceTracker.class);
-
-	/**
-	 * Constructor.
-	 *
-	 * @param extenderContext
-	 *            extender context; cannot be null
-	 * @param bundleContext
-	 *            extender bundle context; cannot be null
-	 */
-	private ResourceTracker(final ExtenderContext extenderContext, final BundleContext bundleContext) {
-		super(extenderContext, bundleContext);
+	private ResourceTracker(final WhiteboardExtenderContext whiteboardExtenderContext, final BundleContext bundleContext) {
+		super(whiteboardExtenderContext, bundleContext);
 	}
 
-	@SuppressWarnings("unchecked")
-	public static ServiceTracker<Object, ResourceWebElement> createTracker(final ExtenderContext extenderContext,
+	public static ServiceTracker<Object, ServletModel> createTracker(final WhiteboardExtenderContext whiteboardExtenderContext,
 			final BundleContext bundleContext) {
-		return new ResourceTracker(extenderContext, bundleContext).create("(" + HttpWhiteboardConstants.HTTP_WHITEBOARD_RESOURCE_PREFIX + "=*)");
+		return new ResourceTracker(whiteboardExtenderContext, bundleContext)
+				.create(String.format("(%s=*)", HttpWhiteboardConstants.HTTP_WHITEBOARD_RESOURCE_PATTERN));
 	}
 
-	/**
-	 * @see AbstractTracker#createWebElement(ServiceReference, Object)
-	 */
 	@Override
-	ResourceWebElement createWebElement(final ServiceReference<Object> serviceReference, final Object published) {
+	protected ServletModel createElementModel(ServiceReference<Object> serviceReference, Integer rank, Long serviceId) {
+		log.debug("Creating resource model from R7 whiteboard service {} (id={})", serviceReference, serviceId);
 
-		String[] resourcePattern = ServicePropertiesUtils.getArrayOfStringProperty(serviceReference,
-				HttpWhiteboardConstants.HTTP_WHITEBOARD_RESOURCE_PATTERN);
-		String prefix = ServicePropertiesUtils.getStringProperty(serviceReference,
-				HttpWhiteboardConstants.HTTP_WHITEBOARD_RESOURCE_PREFIX);
+		// URL patterns
+		String[] urlPatterns = Utils.getPaxWebProperty(serviceReference,
+				null, HttpWhiteboardConstants.HTTP_WHITEBOARD_RESOURCE_PATTERN,
+				Utils::asStringArray);
 
-		if (resourcePattern != null && prefix != null) {
-
-			String httpContextId = ServicePropertiesUtils.extractHttpContextId(serviceReference);
-
-			final DefaultResourceMapping mapping = new DefaultResourceMapping();
-			mapping.setHttpContextId(httpContextId);
-
-			mapping.setAlias(resourcePattern[0]); // TODO: make sure multiple
-													// patterns are supported
-			mapping.setPath(prefix);
-
-			return new ResourceWebElement(serviceReference, mapping);
-		} else {
-			return null;
+		// prefix
+		String path = Utils.getStringProperty(serviceReference, HttpWhiteboardConstants.HTTP_WHITEBOARD_RESOURCE_PREFIX);
+		if (path == null || "".equals(path.trim())) {
+			path = "/";
 		}
+
+		// pass everything to a handy builder - there's no servlet/servletSupplier/servletReference/servletClass
+		// provided, which will trigger a call to ServerController.createResourceServlet()
+		ServletModel.Builder builder = new ServletModel.Builder()
+				.withServiceRankAndId(rank, serviceId)
+				.withRegisteringBundle(serviceReference.getBundle())
+				.withUrlPatterns(urlPatterns)
+				.withLoadOnStartup(1)
+				.withAsyncSupported(true)
+				.withRawPath(path) // could be file: or a chroot inside a bundle - we'll check and validate later
+				.resourceServlet(true);
+
+		return builder.build();
 	}
 
 }

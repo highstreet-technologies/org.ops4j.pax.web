@@ -1,523 +1,323 @@
-/* Copyright 2007 Alin Dreghiciu.
+/*
+ * Copyright 2007 Alin Dreghiciu.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
- * implied.
- *
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
 package org.ops4j.pax.web.service.internal;
 
-import java.net.URL;
-import java.util.Arrays;
+import java.util.Collection;
 import java.util.Dictionary;
 import java.util.EventListener;
-import java.util.Iterator;
 import java.util.List;
-
 import javax.servlet.Filter;
 import javax.servlet.MultipartConfigElement;
 import javax.servlet.Servlet;
 import javax.servlet.ServletContainerInitializer;
 import javax.servlet.ServletException;
+import javax.servlet.SessionCookieConfig;
+import javax.servlet.descriptor.JspPropertyGroupDescriptor;
+import javax.servlet.descriptor.TaglibDescriptor;
 
-import org.ops4j.lang.NullArgumentException;
-import org.ops4j.pax.web.service.SharedWebContainerContext;
+import org.ops4j.pax.web.service.MultiBundleWebContainerContext;
 import org.ops4j.pax.web.service.WebContainer;
-import org.ops4j.pax.web.service.WebContainerDTO;
-import org.ops4j.pax.web.service.whiteboard.WhiteboardElement;
+import org.ops4j.pax.web.service.views.PaxWebContainerView;
+import org.osgi.framework.Bundle;
+import org.osgi.framework.ServiceReference;
 import org.osgi.service.http.HttpContext;
 import org.osgi.service.http.NamespaceException;
-import org.osgi.service.http.runtime.dto.RequestInfoDTO;
-import org.osgi.service.http.runtime.dto.RuntimeDTO;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class HttpServiceProxy implements StoppableHttpService {
+/**
+ * <p>This is the proxy registered as {@link org.osgi.framework.Constants#SCOPE_BUNDLE bundle scoped}
+ * {@link org.osgi.framework.ServiceFactory} for {@link org.osgi.service.http.HttpService}.</p>
+ *
+ * <p>Registered OSGi service should not be <em>replaced</em>, so when bundle will be stopping and
+ * {@link org.osgi.framework.BundleContext#ungetService(ServiceReference)} will be called, the actual service
+ * will be replaced by <em>stopped</em> service preventing further manipulation (like new servlet registration).
+ * This is to prevent other (possible) threads to use no longer valid {@link org.osgi.service.http.HttpService}.</p>
+ */
+class HttpServiceProxy implements WebContainer, StoppableHttpService {
 
-	private static final Logger LOG = LoggerFactory
-			.getLogger(HttpServiceProxy.class);
-	private StoppableHttpService delegate;
+	private static final Logger LOG = LoggerFactory.getLogger(HttpServiceProxy.class);
 
-	public HttpServiceProxy(final StoppableHttpService delegate) {
-		NullArgumentException.validateNotNull(delegate, "Delegate");
-		LOG.debug("HttpServiceProxy created for HttpService {}", delegate);
+	// actual service that may be replaced by "stopped" http service preventing further registration of web components
+	private volatile WebContainer delegate;
+
+	private final Bundle serviceBundle;
+
+	HttpServiceProxy(Bundle serviceBundle, final WebContainer delegate) {
+		LOG.debug("HttpServiceProxy created for {}", delegate);
+
+		this.serviceBundle = serviceBundle;
 		this.delegate = delegate;
 	}
 
-	/*
-	 * (non-Javadoc)
-	 * 
-	 * @see org.osgi.service.http.HttpService#registerServlet(java.lang.String,
-	 * javax.servlet.Servlet, java.util.Dictionary,
-	 * org.osgi.service.http.HttpContext)
-	 */
-	@Override
-	public void registerServlet(final String alias, final Servlet servlet,
-								@SuppressWarnings("rawtypes") final Dictionary initParams,
-								final HttpContext httpContext) throws ServletException,
-			NamespaceException {
-		LOG.debug("Registering servlet: [" + alias + "] -> " + servlet);
-		delegate.registerServlet(alias, servlet, initParams, httpContext);
-	}
+	// --- StoppableHttpService
 
 	@Override
-	public void registerResources(final String alias, final String name,
-								  final HttpContext httpContext) throws NamespaceException {
-		LOG.debug("Registering resource: [" + alias + "] -> " + name);
-		delegate.registerResources(alias, name, httpContext);
+	public void stop() {
+		if (delegate instanceof StoppableHttpService) {
+			LOG.debug("Stopping http service: {}", delegate);
+			final StoppableHttpService stopping = (StoppableHttpService) delegate;
+
+			// PAXWEB-1077: ServletContext becomes unavailable on restart when using Whiteboard and CustomContexts
+
+			// first replace the delegate
+			delegate = new HttpServiceDisabled(serviceBundle);
+
+			// then cleanup the delegate without a risk of problems happening at user side
+			stopping.stop();
+		} else {
+			LOG.warn("Http service has already been stopped");
+		}
 	}
 
+	// --- container views
+
 	@Override
-	public void unregister(final String alias) {
-		LOG.debug("Unregistering [" + alias + "]");
-		delegate.unregister(alias);
+	public <T extends PaxWebContainerView> T adapt(Class<T> type) {
+		return delegate.adapt(type);
 	}
+
+	// --- different methods used to retrieve HttpContext
 
 	@Override
 	public HttpContext createDefaultHttpContext() {
-		LOG.debug("Creating a default context");
 		return delegate.createDefaultHttpContext();
 	}
 
 	@Override
-	public HttpContext createDefaultHttpContext(String contextID) {
-		LOG.debug("Creating a default context with id {}", contextID);
-		return delegate.createDefaultHttpContext(contextID);
+	public HttpContext createDefaultHttpContext(String contextId) {
+		return delegate.createDefaultHttpContext(contextId);
 	}
 
 	@Override
-	public synchronized void stop() {
-		LOG.debug("Stopping http service: [" + this + " -> " + delegate + "]");
-		final StoppableHttpService stopping = delegate;
-		/*
-		if (stopping instanceof HttpServiceStarted) {
-			delegate = new HttpServiceStopped((HttpServiceStarted) stopping);
-		} else {
-			delegate = new HttpServiceStopped();
-		}
-		*/
-		stopping.stop();
+	public MultiBundleWebContainerContext createDefaultSharedHttpContext() {
+		return delegate.createDefaultSharedHttpContext();
 	}
 
-	/**
-	 * @see WebContainer#registerServlet(Servlet, String[], Dictionary,
-	 * HttpContext)
-	 */
 	@Override
-	public void registerServlet(final Servlet servlet,
-								final String[] urlPatterns, final Dictionary<String, ?> initParams,
-								final HttpContext httpContext) throws ServletException {
-		LOG.debug("Registering servlet [" + servlet + "]");
+	public MultiBundleWebContainerContext createDefaultSharedHttpContext(String contextId) {
+		return delegate.createDefaultSharedHttpContext(contextId);
+	}
+
+	// --- methods used to register a Servlet - with more options than in original HttpService.registerServlet()
+
+	@Override
+	public void registerServlet(String alias, Servlet servlet, Dictionary<?, ?> initParams, HttpContext httpContext)
+			throws ServletException, NamespaceException {
+		delegate.registerServlet(alias, servlet, initParams, httpContext);
+	}
+
+	@Override
+	public void registerServlet(String alias, Servlet servlet, Dictionary<?, ?> initParams,
+			Integer loadOnStartup, Boolean asyncSupported, HttpContext httpContext)
+			throws ServletException, NamespaceException {
+		delegate.registerServlet(alias, servlet, initParams, loadOnStartup, asyncSupported, httpContext);
+	}
+
+	@Override
+	public void registerServlet(Servlet servlet, String[] urlPatterns, Dictionary<String, String> initParams,
+			HttpContext httpContext) throws ServletException {
 		delegate.registerServlet(servlet, urlPatterns, initParams, httpContext);
 	}
 
-	/**
-	 * @see WebContainer#registerServlet(javax.servlet.Servlet, String,
-	 * String[], java.util.Dictionary, org.osgi.service.http.HttpContext)
-	 */
 	@Override
-	public void registerServlet(final Servlet servlet,
-								final String servletName, final String[] urlPatterns,
-								final Dictionary<String, ?> initParams,
-								final HttpContext httpContext) throws ServletException {
-		LOG.debug("Registering servlet [" + servlet + "] with name ["
-				+ servletName + "]");
-		delegate.registerServlet(servlet, servletName, urlPatterns, initParams,
-				httpContext);
+	public void registerServlet(Servlet servlet, String[] urlPatterns, Dictionary<String, String> initParams,
+			Integer loadOnStartup, Boolean asyncSupported, HttpContext httpContext) throws ServletException {
+		delegate.registerServlet(servlet, urlPatterns, initParams, loadOnStartup, asyncSupported, httpContext);
 	}
 
-	/**
-	 * @see WebContainer#unregisterServlet(Servlet)
-	 */
 	@Override
-	public void unregisterServlet(final Servlet servlet) {
-		LOG.debug("Unregistering servlet [" + servlet + "]");
+	public void registerServlet(Servlet servlet, String servletName, String[] urlPatterns,
+			Dictionary<String, String> initParams, HttpContext httpContext) throws ServletException {
+		delegate.registerServlet(servlet, servletName, urlPatterns, initParams, httpContext);
+	}
+
+	@Override
+	public void registerServlet(Servlet servlet, String servletName, String[] urlPatterns,
+			Dictionary<String, String> initParams, Integer loadOnStartup, Boolean asyncSupported,
+			HttpContext httpContext) throws ServletException {
+		delegate.registerServlet(servlet, servletName, urlPatterns, initParams, loadOnStartup, asyncSupported, httpContext);
+	}
+
+	@Override
+	public void registerServlet(Servlet servlet, String servletName, String[] urlPatterns,
+			Dictionary<String, String> initParams, Integer loadOnStartup, Boolean asyncSupported,
+			MultipartConfigElement multiPartConfig, HttpContext httpContext) throws ServletException {
+		delegate.registerServlet(servlet, servletName, urlPatterns, initParams, loadOnStartup, asyncSupported,
+				multiPartConfig, httpContext);
+	}
+
+	@Override
+	public void registerServlet(Class<? extends Servlet> servletClass, String[] urlPatterns,
+			Dictionary<String, String> initParams, HttpContext httpContext) throws ServletException {
+		delegate.registerServlet(servletClass, urlPatterns, initParams, httpContext);
+	}
+
+	@Override
+	public void registerServlet(Class<? extends Servlet> servletClass, String[] urlPatterns,
+			Dictionary<String, String> initParams, Integer loadOnStartup, Boolean asyncSupported,
+			HttpContext httpContext) throws ServletException {
+		delegate.registerServlet(servletClass, urlPatterns, initParams, loadOnStartup, asyncSupported, httpContext);
+	}
+
+	@Override
+	public void registerServlet(Class<? extends Servlet> servletClass, String[] urlPatterns, Dictionary<String, String> initParams, Integer loadOnStartup, Boolean asyncSupported, MultipartConfigElement multiPartConfig, HttpContext httpContext) throws ServletException {
+		delegate.registerServlet(servletClass, urlPatterns, initParams, loadOnStartup, asyncSupported,
+				multiPartConfig, httpContext);
+	}
+
+	// --- methods used to unregister a Servlet
+
+	@Override
+	public void unregister(String alias) {
+		delegate.unregister(alias);
+	}
+
+	@Override
+	public void unregisterServlet(Servlet servlet) {
 		delegate.unregisterServlet(servlet);
 	}
 
 	@Override
 	public void unregisterServlet(String servletName) {
-		LOG.debug("Unregistering servlet with name [" + servletName + "]");
 		delegate.unregisterServlet(servletName);
+
 	}
 
-	/**
-	 * @see org.ops4j.pax.web.service.WebContainer#registerServlet(java.lang.Class,
-	 * java.lang.String[], java.util.Dictionary,
-	 * org.osgi.service.http.HttpContext)
-	 */
-	@Override
-	public void registerServlet(Class<? extends Servlet> servletClass,
-								String[] urlPatterns, Dictionary<String, ?> initParams,
-								HttpContext httpContext) throws ServletException {
-		LOG.debug("Registering servlet class [{}]", servletClass);
-		delegate.registerServlet(servletClass, urlPatterns, initParams,
-				httpContext);
-	}
-
-	/**
-	 * @see org.ops4j.pax.web.service.WebContainer#unregisterServlets(java.lang.Class)
-	 */
 	@Override
 	public void unregisterServlets(Class<? extends Servlet> servletClass) {
-		LOG.debug("Unregistering servlet class [{}]", servletClass);
 		delegate.unregisterServlets(servletClass);
 	}
 
-	/**
-	 * @see WebContainer#registerEventListener(EventListener, HttpContext) )
-	 */
+	// --- HttpService.registerResources()
+
 	@Override
-	public void registerEventListener(final EventListener listener,
-									  final HttpContext httpContext) {
-		LOG.debug("Registering event listener [" + listener + "]");
-		delegate.registerEventListener(listener, httpContext);
+	public void registerResources(String alias, String name, HttpContext context) throws NamespaceException {
+		delegate.registerResources(alias, name, context);
 	}
 
-	/**
-	 * @see WebContainer#unregisterEventListener(EventListener)
-	 */
-	@Override
-	public void unregisterEventListener(final EventListener listener) {
-		LOG.debug("Unregistering event listener [" + listener + "]");
-		delegate.unregisterEventListener(listener);
-	}
-
-	/**
-	 * @see WebContainer#registerFilter(Filter, String[], String[], Dictionary,
-	 * HttpContext)
-	 */
-	@Override
-	public void registerFilter(final Filter filter, final String[] urlPatterns,
-							   final String[] aliases, final Dictionary<String, ?> initParams,
-							   final HttpContext httpContext) {
-		LOG.debug("Registering filter [" + filter + "]");
-		delegate.registerFilter(filter, urlPatterns, aliases, initParams, httpContext);
-	}
-
+	// --- methods used to register a Filter
 
 	@Override
 	public void registerFilter(Filter filter, String[] urlPatterns, String[] servletNames,
-							   Dictionary<String, String> initParams, Boolean asyncSupported, HttpContext httpContext) {
-		LOG.debug("Registering filter [" + filter + "]");
-		delegate.registerFilter(filter, urlPatterns, servletNames, initParams, asyncSupported, httpContext);
-	}
-
-	/**
-	 * @see WebContainer#registerFilter(Filter, String[], String[], Dictionary,
-	 * HttpContext)
-	 */
-	@Override
-	public void registerFilter(Class<? extends Filter> filterClass,
-							   String[] urlPatterns, String[] servletNames,
-							   Dictionary<String, String> initParams, HttpContext httpContext) {
-		LOG.debug("Registering filter with class [" + filterClass + "]");
-		delegate.registerFilter(filterClass, urlPatterns, servletNames, initParams, httpContext);
-	}
-
-	/**
-	 * @see WebContainer#registerFilter(Filter, String[], String[], Dictionary,
-	 * HttpContext)
-	 */
-	@Override
-	public void registerFilter(Class<? extends Filter> filterClass,
-							   String[] urlPatterns, String[] servletNames,
-							   Dictionary<String, String> initParams, boolean asyncSupported, HttpContext httpContext) {
-		LOG.debug("Registering filter with class [" + filterClass + "]");
-		delegate.registerFilter(filterClass, urlPatterns, servletNames, initParams, asyncSupported, httpContext);
-	}
-
-
-	/**
-	 * @see WebContainer#unregisterFilter(Filter)
-	 */
-	@Override
-	public void unregisterFilter(final Filter filter) {
-		LOG.debug("Unregistering filter [" + filter + "]");
-		delegate.unregisterFilter(filter);
-	}
-
-	/**
-	 * @see WebContainer#unregisterFilter(Filter)
-	 */
-	@Override
-	public void unregisterFilter(Class<? extends Filter> filterClass) {
-		LOG.debug("Unregistering filter [" + filterClass + "]");
-		delegate.unregisterFilter(filterClass);
-	}
-
-	/**
-	 * @see WebContainer#unregisterFilter(Filter)
-	 */
-	@Override
-	public void unregisterFilter(final String filterName) {
-		LOG.debug("Unregistering filter [" + filterName + "]");
-		delegate.unregisterFilter(filterName);
-	}
-
-	/**
-	 * @see WebContainer#setContextParam(Dictionary, HttpContext)
-	 */
-	@Override
-	public void setContextParam(final Dictionary<String, ?> params,
-								final HttpContext httpContext) {
-		LOG.debug("Setting context paramters [" + params
-				+ "] for http context [" + httpContext + "]");
-		delegate.setContextParam(params, httpContext);
-	}
-
-	/**
-	 * {@inheritDoc}
-	 */
-	@Override
-	public void setSessionTimeout(final Integer minutes,
-								  final HttpContext httpContext) {
-		LOG.debug("Setting session timeout to " + minutes
-				+ " minutes for http context [" + httpContext + "]");
-		delegate.setSessionTimeout(minutes, httpContext);
+			Dictionary<String, String> initParams, HttpContext httpContext) throws ServletException {
+		delegate.registerFilter(filter, urlPatterns, servletNames, initParams, httpContext);
 	}
 
 	@Override
-	public void setSessionCookieConfig(String domain, String name, Boolean httpOnly, Boolean secure, String path, Integer maxAge, HttpContext httpContext) {
-		LOG.debug(String.format("Setting session cookie configuration to: domain=%s, name=%s, http-only=%b, secure=%b, path=%s, max-age=%d",
-				domain, name, httpOnly, secure, path, maxAge));
-		delegate.setSessionCookieConfig(domain, name, httpOnly, secure, path, maxAge, httpContext);
-	}
-
-	/**
-	 * @see WebContainer#registerJsps(String[], HttpContext)
-	 */
-	@Override
-	public void registerJsps(final String[] urlPatterns,
-							 final HttpContext httpContext) {
-		LOG.debug("Registering jsps");
-		delegate.registerJsps(urlPatterns, httpContext);
-	}
-
-	/**
-	 * @see WebContainer#registerJsps(String[], Dictionary, HttpContext)
-	 */
-	@Override
-	public void registerJsps(final String[] urlPatterns,
-							 final Dictionary<String, ?> initParams,
-							 final HttpContext httpContext) {
-		LOG.debug("Registering jsps");
-		delegate.registerJsps(urlPatterns, initParams, httpContext);
-	}
-
-	/**
-	 * @see WebContainer#unregisterJsps(HttpContext)
-	 */
-	@Override
-	public void unregisterJsps(final HttpContext httpContext) {
-		LOG.debug("Unregistering jsps");
-		delegate.unregisterJsps(httpContext);
-	}
-
-	/**
-	 * @see WebContainer#unregisterJsps(HttpContext)
-	 */
-	@Override
-	public void unregisterJsps(final String[] urlPatterns,
-							   final HttpContext httpContext) {
-		LOG.debug("Unregistering jsps");
-		delegate.unregisterJsps(urlPatterns, httpContext);
-	}
-
-	/**
-	 * @see WebContainer#registerErrorPage(String, String, HttpContext)
-	 */
-	@Override
-	public void registerErrorPage(final String error, final String location,
-								  final HttpContext httpContext) {
-		LOG.debug("Registering error page [" + error + "]");
-		delegate.registerErrorPage(error, location, httpContext);
-	}
-
-	/**
-	 * @see WebContainer#unregisterErrorPage(String, HttpContext)
-	 */
-	@Override
-	public void unregisterErrorPage(final String error,
-									final HttpContext httpContext) {
-		LOG.debug("Unregistering error page [" + error + "]");
-		delegate.unregisterErrorPage(error, httpContext);
-	}
-
-	/**
-	 * @see WebContainer#registerWelcomeFiles(String[], boolean, HttpContext)
-	 */
-	@Override
-	public void registerWelcomeFiles(final String[] welcomeFiles,
-									 final boolean redirect, final HttpContext httpContext) {
-		LOG.debug("Registering welcome files [" + Arrays.toString(welcomeFiles)
-				+ "]");
-		delegate.registerWelcomeFiles(welcomeFiles, redirect, httpContext);
-	}
-
-	/**
-	 * @see WebContainer#unregisterWelcomeFiles(String[], HttpContext)
-	 */
-	@Override
-	public void unregisterWelcomeFiles(final String[] welcomeFiles, final HttpContext httpContext) {
-		LOG.debug("Unregistering welcome files");
-		delegate.unregisterWelcomeFiles(welcomeFiles, httpContext);
-	}
-
-	@Override
-	public void registerLoginConfig(String authMethod, String realmName,
-									String formLoginPage, String formErrorPage, HttpContext httpContext) {
-		LOG.debug("Registering LoginConfig for realm [ " + realmName + " ]");
-		delegate.registerLoginConfig(authMethod, realmName, formLoginPage,
-				formErrorPage, httpContext);
-	}
-
-	@Override
-	public void unregisterLoginConfig(final HttpContext httpContext) {
-		LOG.debug("Unregistering LoginConfig");
-		delegate.unregisterLoginConfig(httpContext);
-	}
-
-	@Override
-	public void registerConstraintMapping(String constraintName, String mapping,
-										  String url, String dataConstraint, boolean authentication,
-										  List<String> roles, HttpContext httpContext) {
-		LOG.debug("Registering constraint mapping for [ " + constraintName
-				+ " ] ");
-		delegate.registerConstraintMapping(constraintName, mapping, url,
-				dataConstraint, authentication, roles, httpContext);
-
-	}
-
-	@Override
-	public void unregisterConstraintMapping(final HttpContext httpContext) {
-		LOG.debug("Unregister constraint mapping");
-		delegate.unregisterConstraintMapping(httpContext);
-	}
-
-	@Override
-	public SharedWebContainerContext getDefaultSharedHttpContext() {
-		return delegate.getDefaultSharedHttpContext();
-	}
-
-	@Override
-	public void registerServletContainerInitializer(
-			ServletContainerInitializer servletContainerInitializer,
-			Class<?>[] classes, final HttpContext httpContext) {
-		delegate.registerServletContainerInitializer(
-				servletContainerInitializer, classes, httpContext);
-	}
-
-	@Override
-	public void unregisterServletContainerInitializer(HttpContext httpContext) {
-		delegate.unregisterServletContainerInitializer(httpContext);
-	}
-
-	@Override
-	public void registerJettyWebXml(URL jettyWebXmlURL, HttpContext httpContext) {
-		delegate.registerJettyWebXml(jettyWebXmlURL, httpContext);
-	}
-
-	@Override
-	public void registerJspServlet(String[] urlPatterns,
-								   HttpContext httpContext, String jspFile) {
-		delegate.registerJspServlet(urlPatterns, httpContext, jspFile);
-	}
-
-	@Override
-	public void registerJspServlet(String[] urlPatterns,
-								   Dictionary<String, ?> initParams, HttpContext httpContext,
-								   String jspFile) {
-		delegate.registerJspServlet(urlPatterns, initParams, httpContext,
-				jspFile);
-	}
-
-	@Override
-	public void setConnectorsAndVirtualHosts(List<String> connectors, List<String> virtualHosts, HttpContext httpContext) {
-		delegate.setConnectorsAndVirtualHosts(connectors, virtualHosts, httpContext);
-	}
-
-	@Override
-	public void begin(HttpContext httpContext) {
-		delegate.begin(httpContext);
-	}
-
-	@Override
-	public void end(HttpContext httpContext) {
-		delegate.end(httpContext);
-	}
-
-	@Override
-	public void registerServlet(Servlet servlet, String[] urlPatterns,
-								Dictionary<String, ?> initParams, Integer loadOnStartup,
-								Boolean asyncSupported, HttpContext httpContext)
-			throws ServletException {
-		delegate.registerServlet(servlet, urlPatterns, initParams,
-				loadOnStartup, asyncSupported, httpContext);
-	}
-
-	@Override
-	public void registerServlet(Servlet servlet, String servletName,
-								String[] urlPatterns, Dictionary<String, ?> initParams,
-								Integer loadOnStartup, Boolean asyncSupported,
-								HttpContext httpContext) throws ServletException {
-
-		delegate.registerServlet(servlet, servletName, urlPatterns, initParams,
-				loadOnStartup, asyncSupported, httpContext);
-	}
-
-	@Override
-	public void registerServlet(Class<? extends Servlet> servletClass,
-								String[] urlPatterns, Dictionary<String, ?> initParams,
-								Integer loadOnStartup, Boolean asyncSupported,
-								HttpContext httpContext) throws ServletException {
-		delegate.registerServlet(servletClass, urlPatterns, initParams,
-				loadOnStartup, asyncSupported, httpContext);
-
-	}
-
-	@Override
-	public void registerServlet(String alias, Servlet servlet,
-								@SuppressWarnings("rawtypes") Dictionary initParams,
-								Integer loadOnStartup, Boolean asyncSupported,
-								HttpContext httpContext) throws ServletException,
-			NamespaceException {
-		delegate.registerServlet(alias, servlet, initParams, loadOnStartup,
+	public void registerFilter(Filter filter, String filterName, String[] urlPatterns, String[] servletNames,
+			Dictionary<String, String> initParams, Boolean asyncSupported,
+			HttpContext httpContext) throws ServletException {
+		delegate.registerFilter(filter, filterName, urlPatterns, servletNames, initParams,
 				asyncSupported, httpContext);
 	}
 
 	@Override
-	public void registerServlet(Servlet servlet, String servletName,
-								String[] urlPatterns, Dictionary<String, ?> initParams,
-								Integer loadOnStartup, Boolean asyncSupported, MultipartConfigElement multiPartConfig,
-								HttpContext httpContext)
-			throws ServletException {
-		delegate.registerServlet(servlet, servletName, urlPatterns, initParams, loadOnStartup,
-				asyncSupported, multiPartConfig, httpContext);
-	}
-
-
-	@Override
-	public SharedWebContainerContext createDefaultSharedHttpContext() {
-		return delegate.createDefaultSharedHttpContext();
+	public void registerFilter(Class<? extends Filter> filterClass, String[] urlPatterns, String[] servletNames,
+			Dictionary<String, String> initParams, HttpContext httpContext) throws ServletException {
+		delegate.registerFilter(filterClass, urlPatterns, servletNames, initParams, httpContext);
 	}
 
 	@Override
-	public void registerServlet(Class<? extends Servlet> servletClass,
-								String[] urlPatterns, Dictionary<String, ?> initParams,
-								Integer loadOnStartup, Boolean asyncSupported, MultipartConfigElement multiPartConfig,
-								HttpContext httpContext)
-			throws ServletException {
-		delegate.registerServlet(servletClass, urlPatterns, initParams, loadOnStartup, asyncSupported, multiPartConfig, httpContext);
+	public void registerFilter(Class<? extends Filter> filterClass, String filterName, String[] urlPatterns,
+			String[] servletNames, Dictionary<String, String> initParams, Boolean asyncSupported,
+			HttpContext httpContext) throws ServletException {
+		delegate.registerFilter(filterClass, filterName, urlPatterns, servletNames, initParams,
+				asyncSupported, httpContext);
+	}
+
+	// --- methods used to unregister a Filter
+
+	@Override
+	public void unregisterFilter(Filter filter) {
+		delegate.unregisterFilter(filter);
+	}
+
+	@Override
+	public void unregisterFilter(String filterName) {
+		delegate.unregisterFilter(filterName);
+	}
+
+	@Override
+	public void unregisterFilters(Class<? extends Filter> filterClass) {
+		delegate.unregisterFilters(filterClass);
+	}
+
+	// --- methods used to register an EventListener
+
+	@Override
+	public void registerEventListener(final EventListener listener, final HttpContext httpContext) {
+		delegate.registerEventListener(listener, httpContext);
+	}
+
+	// --- methods used to unregister an EventListener
+
+	@Override
+	public void unregisterEventListener(final EventListener listener) {
+		delegate.unregisterEventListener(listener);
+	}
+
+	// --- methods used to register welcome pages
+
+	@Override
+	public void registerWelcomeFiles(String[] welcomeFiles, boolean redirect, HttpContext httpContext) {
+		delegate.registerWelcomeFiles(welcomeFiles, redirect, httpContext);
+	}
+
+	// --- methods used to unregister welcome pages
+
+	@Override
+	public void unregisterWelcomeFiles(String[] welcomeFiles, HttpContext httpContext) {
+		delegate.unregisterWelcomeFiles(welcomeFiles, httpContext);
+	}
+
+	// --- methods used to register error pages
+
+	@Override
+	public void registerErrorPage(String error, String location, HttpContext httpContext) {
+		delegate.registerErrorPage(error, location, httpContext);
+	}
+
+	@Override
+	public void registerErrorPages(String[] errors, String location, HttpContext httpContext) {
+		delegate.registerErrorPages(errors, location, httpContext);
+	}
+
+	// --- methods used to unregister error pages
+
+	@Override
+	public void unregisterErrorPage(String error, HttpContext httpContext) {
+		delegate.unregisterErrorPage(error, httpContext);
+	}
+
+	@Override
+	public void unregisterErrorPages(String[] errors, HttpContext httpContext) {
+		delegate.unregisterErrorPages(errors, httpContext);
+	}
+
+	// methods used to register / configure JSPs
+
+	@Override
+	public void registerJsps(String[] urlPatterns, Dictionary<String, String> initParams, HttpContext httpContext) {
+		delegate.registerJsps(urlPatterns, initParams, httpContext);
+	}
+
+	@Override
+	public void registerJspServlet(String jspFile, String[] urlPatterns, Dictionary<String, String> initParams, HttpContext httpContext) {
+		delegate.registerJspServlet(jspFile, urlPatterns, initParams, httpContext);
 	}
 
 	@Override
@@ -526,36 +326,115 @@ public class HttpServiceProxy implements StoppableHttpService {
 	}
 
 	@Override
-	public void registerJspConfigPropertyGroup(List<String> includeCodes,
-											   List<String> includePreludes, List<String> urlPatterns, Boolean elIgnored, Boolean scriptingInvalid,
-											   Boolean isXml, HttpContext httpContext) {
-		delegate.registerJspConfigPropertyGroup(includeCodes, includePreludes, urlPatterns, elIgnored, scriptingInvalid, isXml, httpContext);
+	public void registerJspConfigTagLibs(Collection<TaglibDescriptor> tagLibs, HttpContext httpContext) {
+		delegate.registerJspConfigTagLibs(tagLibs, httpContext);
 	}
+
+	@Override
+	public void registerJspConfigPropertyGroup(List<String> includeCodas, List<String> includePreludes,
+			List<String> urlPatterns, Boolean elIgnored, Boolean scriptingInvalid, Boolean isXml,
+			HttpContext httpContext) {
+		delegate.registerJspConfigPropertyGroup(includeCodas, includePreludes, urlPatterns,
+				elIgnored, scriptingInvalid, isXml, httpContext);
+	}
+
+	@Override
+	public void registerJspConfigPropertyGroup(JspPropertyGroupDescriptor descriptor, HttpContext httpContext) {
+		delegate.registerJspConfigPropertyGroup(descriptor, httpContext);
+	}
+
+	// methods used to unregister / unconfigure JSPs
+
+	@Override
+	public void unregisterJsps(HttpContext httpContext) {
+		delegate.unregisterJsps(httpContext);
+	}
+
+	@Override
+	public void unregisterJspServlet(String jspFile, HttpContext httpContext) {
+		delegate.unregisterJspServlet(jspFile, httpContext);
+	}
+
+	// methods used to register ServletContainerInitializers
+
+	@Override
+	public void registerServletContainerInitializer(ServletContainerInitializer initializer, Class<?>[] classes, HttpContext httpContext) {
+		delegate.registerServletContainerInitializer(initializer, classes, httpContext);
+	}
+
+	// methods used to unregister ServletContainerInitializers
+
+	@Override
+	public void unregisterServletContainerInitializer(ServletContainerInitializer initializer, HttpContext httpContext) {
+		delegate.unregisterServletContainerInitializer(initializer, httpContext);
+	}
+
+	// methods used to configure session
+
+	@Override
+	public void setSessionTimeout(Integer minutes, HttpContext httpContext) {
+		delegate.setSessionTimeout(minutes, httpContext);
+	}
+
+	@Override
+	public void setSessionCookieConfig(String domain, String name, Boolean httpOnly, Boolean secure, String path,
+			Integer maxAge, HttpContext httpContext) {
+		delegate.setSessionCookieConfig(domain, name, httpOnly, secure, path, maxAge, httpContext);
+	}
+
+	@Override
+	public void setSessionCookieConfig(SessionCookieConfig config, HttpContext httpContext) {
+		delegate.setSessionCookieConfig(config, httpContext);
+	}
+
+	// methods used to alter context init parameters
+
+	@Override
+	public void setContextParams(Dictionary<String, Object> params, HttpContext httpContext) {
+		delegate.setContextParams(params, httpContext);
+	}
+
+	// methods used to register annotated web socket endpoints
 
 	@Override
 	public void registerWebSocket(Object webSocket, HttpContext httpContext) {
 		delegate.registerWebSocket(webSocket, httpContext);
 	}
 
+	// methods used to unregister annotated web socket endpoints
+
 	@Override
 	public void unregisterWebSocket(Object webSocket, HttpContext httpContext) {
 		delegate.unregisterWebSocket(webSocket, httpContext);
 	}
 
+	// #1823: methods used to configure security (login configuration and security constraints)
+
 	@Override
-	public RequestInfoDTO calculateRequestInfoDTO(String path, Iterator<WhiteboardElement> iterator) {
-		return delegate.calculateRequestInfoDTO(path, iterator);
+	public void registerLoginConfig(String authMethod, String realmName, String formLoginPage, String formErrorPage, HttpContext httpContext) {
+		delegate.registerLoginConfig(authMethod, realmName, formLoginPage, formErrorPage, httpContext);
 	}
 
 	@Override
-	public RuntimeDTO createWhiteboardRuntimeDTO(Iterator<WhiteboardElement> iterator) {
-		return delegate.createWhiteboardRuntimeDTO(iterator);
+	public void registerConstraintMapping(String constraintName, String httpMethod, String url, String dataConstraint, boolean authentication, List<String> roles, HttpContext httpContext) {
+		delegate.registerConstraintMapping(constraintName, httpMethod, url, dataConstraint, authentication, roles, httpContext);
 	}
 
-    @Override
-    public WebContainerDTO getWebcontainerDTO() {
-        return delegate.getWebcontainerDTO();
-    }
+	// #1823: methods used to un-configure security (login configuration and security constraints)
 
+	@Override
+	public void unregisterLoginConfig(HttpContext httpContext) {
+		delegate.unregisterLoginConfig(httpContext);
+	}
+
+	@Override
+	public void unregisterConstraintMapping(HttpContext httpContext) {
+		delegate.unregisterConstraintMapping(httpContext);
+	}
+
+	@Override
+	public String toString() {
+		return "Proxy for " + delegate.toString();
+	}
 
 }

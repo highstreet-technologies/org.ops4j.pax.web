@@ -1,29 +1,30 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+<!--
 
-	<!-- 
-	
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
-	 
-	    http://www.apache.org/licenses/LICENSE-2.0
-	 
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	
-	 -->
+    Copyright 2021 OPS4J.
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
 
 	<modelVersion>4.0.0</modelVersion>
 
 	<parent>
-		<relativePath>../pom.xml</relativePath>
 		<groupId>org.ops4j.pax</groupId>
 		<artifactId>web</artifactId>
-		<version>8.0.0-SNAPSHOT</version>
+		<version>8.0.27</version>
+		<relativePath>../pom.xml</relativePath>
 	</parent>
 
 	<groupId>org.ops4j.pax.web</groupId>
@@ -33,49 +34,10 @@
 	<name>OPS4J Pax Web - Features</name>
 
 	<description>
-    Pax Web module creating a features xml file to deploy Pax Web components as features in Apache Karaf.
-    To use this feature enter the following in your Karaf shell -
-    features:install mvn:org.ops4j.pax.web/features/${project.version}/xml/features
-  </description>
-
-	<properties>
-        <geronimo.jta-spec.version>1.1.1</geronimo.jta-spec.version>
-		<javax.annotation.version>1.3</javax.annotation.version>
-        <geronimo.jaspic-spec.version>1.1</geronimo.jaspic-spec.version>
-		<geronimo.servlet.version>1.1.2</geronimo.servlet.version>
-        <javax.mail.version>1.4.4</javax.mail.version>
-		<pax.url.version>${dependency.paxurl.version}</pax.url.version>
-        <servicemix.specs.version>2.5.0</servicemix.specs.version>
-        <dependency.websocket.version>1.1</dependency.websocket.version>
-        <dependency.alpn.version>1.1.2.v20150522</dependency.alpn.version>
-	</properties>
-
-	<dependencies>
-		<dependency>
-			<groupId>org.apache.karaf.features</groupId>
-			<artifactId>framework</artifactId>
-			<version>${dependency.karaf.version}</version>
-			<type>kar</type>
-			<scope>provided</scope>
-		</dependency>
-		<dependency>
-			<groupId>org.ops4j.pax.web</groupId>
-			<artifactId>pax-web-jetty</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>org.ops4j.pax.web</groupId>
-			<artifactId>pax-web-tomcat</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>org.ops4j.pax.web</groupId>
-			<artifactId>pax-web-undertow</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>org.eclipse.jetty</groupId>
-			<artifactId>jetty-continuation</artifactId>
-			<scope>provided</scope>
-		</dependency>
-	</dependencies>
+		Pax Web module creating a features xml file to deploy Pax Web components as features in Apache Karaf.
+		To use this feature enter the following in your Karaf shell -
+		feature:install mvn:org.ops4j.pax.web/features/${project.version}/xml/features
+	</description>
 
 	<build>
 		<resources>
@@ -84,20 +46,11 @@
 				<filtering>true</filtering>
 			</resource>
 		</resources>
+
 		<plugins>
-			<plugin>
-				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-dependency-plugin</artifactId>
-				<executions>
-					<execution>
-						<id>copy</id>
-						<phase>generate-resources</phase>
-						<goals>
-							<goal>copy-dependencies</goal>
-						</goals>
-					</execution>
-				</executions>
-			</plugin>
+
+			<!-- Core plugins -->
+
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-resources-plugin</artifactId>
@@ -111,10 +64,12 @@
 					</execution>
 				</executions>
 			</plugin>
+
+			<!-- Karaf plugins -->
+
 			<plugin>
 				<groupId>org.apache.karaf.tooling</groupId>
 				<artifactId>karaf-maven-plugin</artifactId>
-				<version>${dependency.karaf.version}</version>
 				<executions>
 					<execution>
 						<id>verify</id>
@@ -124,10 +79,8 @@
 						</goals>
 						<configuration>
 							<descriptors>
-								<descriptor>mvn:org.apache.karaf.features/framework/${dependency.karaf.version}/xml/features</descriptor>
-								<descriptor>mvn:org.apache.karaf.features/standard/${dependency.karaf.version}/xml/features</descriptor>
-								<descriptor>mvn:org.apache.karaf.features/enterprise/${dependency.karaf.version}/xml/features</descriptor>
-								<descriptor>mvn:org.ops4j.pax.keycloak/pax-keycloak-features/${dependency.pax-keycloak.version}/xml/features</descriptor>
+								<descriptor>mvn:org.apache.karaf.features/specs/${dependency.org.apache.karaf}/xml/features</descriptor>
+								<descriptor>mvn:org.apache.karaf.features/standard/${dependency.org.apache.karaf}/xml/features</descriptor>
 								<descriptor>file:${project.build.directory}/classes/features.xml</descriptor>
 							</descriptors>
 							<blacklistedDescriptors>
@@ -136,27 +89,39 @@
 								<descriptor>mvn:org.ops4j.pax.web/pax-web-features</descriptor>
 							</blacklistedDescriptors>
 							<distribution>org.apache.karaf.features:framework</distribution>
-							<javase>1.8</javase>
+							<javase>9</javase>
 							<framework>
 								<feature>framework</feature>
 							</framework>
 							<features>
-								<!-- We can't use pax-* as we need to disable pax-jsf-support
-								<feature>pax-*</feature>
-								-->
-								<feature>pax-http</feature>
-								<feature>pax-http-whiteboard</feature>
-								<feature>pax-war</feature>
-								<feature>pax-jetty</feature>
-<!-- 								<feature>pax-jetty-spdy</feature> -->
-								<feature>pax-http-jetty</feature>
-								<!-- pax-cdi does not validate correctly
-								<feature>pax-jsf-support</feature>
-								-->
-								<feature>pax-tomcat</feature>
-								<feature>pax-http-tomcat</feature>
-								<feature>pax-undertow</feature>
-								<feature>pax-http-undertow</feature>
+								<feature>pax-web-specs</feature>
+								<feature>pax-web-core</feature>
+								<feature>pax-web-websockets</feature>
+								<feature>pax-web-jetty</feature>
+								<feature>pax-web-jetty-websockets</feature>
+								<feature>pax-web-jetty-extras</feature>
+								<feature>pax-web-jetty-http2</feature>
+								<feature>pax-web-jetty-http2-extras</feature>
+								<feature>pax-web-jetty-http2-jdk8</feature>
+								<feature>pax-web-jetty-http2-jdk9</feature>
+								<feature>pax-web-http-jetty</feature>
+<!--								<feature>pax-web-jetty-keycloak18</feature>-->
+								<feature>pax-web-jetty-keycloak</feature>
+								<feature>pax-web-tomcat</feature>
+								<feature>pax-web-tomcat-websockets</feature>
+								<feature>pax-web-http-tomcat</feature>
+<!--								<feature>pax-web-tomcat-keycloak18</feature>-->
+								<feature>pax-web-tomcat-keycloak</feature>
+								<feature>pax-web-undertow</feature>
+								<feature>pax-web-undertow-websockets</feature>
+<!--								<feature>pax-web-undertow-keycloak18</feature>-->
+								<feature>pax-web-undertow-keycloak</feature>
+								<feature>pax-web-http-undertow</feature>
+								<feature>pax-web-jsp</feature>
+								<feature>pax-web-whiteboard</feature>
+								<feature>pax-web-war</feature>
+								<feature>pax-web-karaf</feature>
+								<feature>keycloak-adapter-core</feature>
 							</features>
 							<verifyTransitive>false</verifyTransitive>
 							<ignoreMissingConditions>true</ignoreMissingConditions>
@@ -164,6 +129,9 @@
 					</execution>
 				</executions>
 			</plugin>
+
+			<!-- MojoHaus plugins -->
+
 			<plugin>
 				<groupId>org.codehaus.mojo</groupId>
 				<artifactId>build-helper-maven-plugin</artifactId>
@@ -184,24 +152,149 @@
 								<artifact>
 									<file>${project.build.outputDirectory}/jetty.xml</file>
 									<type>xml</type>
-									<classifier>jettyconfig</classifier>
+									<classifier>config-jetty</classifier>
 								</artifact>
 								<artifact>
-									<file>${project.build.outputDirectory}/undertow.properties</file>
-									<type>properties</type>
-									<classifier>undertowconfig</classifier>
+									<file>${project.build.outputDirectory}/jetty-web.xml</file>
+									<type>xml</type>
+									<classifier>context-jetty</classifier>
+								</artifact>
+								<artifact>
+									<file>${project.build.outputDirectory}/tomcat-server.xml</file>
+									<type>xml</type>
+									<classifier>config-tomcat</classifier>
+								</artifact>
+								<artifact>
+									<file>${project.build.outputDirectory}/tomcat-context.xml</file>
+									<type>xml</type>
+									<classifier>context-tomcat</classifier>
 								</artifact>
 								<artifact>
 									<file>${project.build.outputDirectory}/undertow.xml</file>
 									<type>xml</type>
-									<classifier>undertowconfig</classifier>
+									<classifier>config-undertow</classifier>
 								</artifact>
-                            </artifacts>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
+							</artifacts>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
+
 		</plugins>
 	</build>
+
+	<dependencies>
+
+		<!-- pax-web own artifacts -->
+
+		<dependency>
+			<groupId>org.ops4j.pax.web</groupId>
+			<artifactId>pax-web-api</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web</groupId>
+			<artifactId>pax-web-compatibility-annotation13</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web</groupId>
+			<artifactId>pax-web-compatibility-el2</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web</groupId>
+			<artifactId>pax-web-compatibility-servlet31</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web</groupId>
+			<artifactId>pax-web-extender-war</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web</groupId>
+			<artifactId>pax-web-extender-whiteboard</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web</groupId>
+			<artifactId>pax-web-jetty</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web</groupId>
+			<artifactId>pax-web-jetty-keycloak18</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web</groupId>
+			<artifactId>pax-web-jetty-keycloak</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web</groupId>
+			<artifactId>pax-web-jsp</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web</groupId>
+			<artifactId>pax-web-runtime</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web</groupId>
+			<artifactId>pax-web-spi</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web</groupId>
+			<artifactId>pax-web-tomcat</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web</groupId>
+			<artifactId>pax-web-tomcat-common</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web</groupId>
+			<artifactId>pax-web-tomcat-websocket</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web</groupId>
+			<artifactId>pax-web-tomcat-keycloak18</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web</groupId>
+			<artifactId>pax-web-tomcat-keycloak</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web</groupId>
+			<artifactId>pax-web-undertow</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web</groupId>
+			<artifactId>pax-web-undertow-websocket</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web</groupId>
+			<artifactId>pax-web-undertow-keycloak</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web</groupId>
+			<artifactId>pax-web-websocket</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.ops4j.pax.web</groupId>
+			<artifactId>keycloak-common</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.ops4j.pax.web</groupId>
+			<artifactId>keycloak-osgi-adapter</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.apache.karaf.features</groupId>
+			<artifactId>framework</artifactId>
+			<type>kar</type>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.karaf.features</groupId>
+			<artifactId>standard</artifactId>
+			<type>xml</type>
+			<classifier>features</classifier>
+			<scope>provided</scope>
+		</dependency>
+
+	</dependencies>
 
 </project>

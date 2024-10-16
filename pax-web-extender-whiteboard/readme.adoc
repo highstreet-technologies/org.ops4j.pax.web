@@ -1,0 +1,434 @@
+= pax-web-extender-whiteboard
+
+This bundle is the implementation of OSGi CMPN R7 Http Whiteboard specification.
+
+The actual processing of ready _web elements_, that build _web applications_ (the *model*) and control over target web server runtime is performed in pax-web-runtime bundle. Here, it's all about tracking OSGi services related to Whiteboard specification and translating them into lower-level invocations on Pax Web internal services.
+
+== Which services are tracked
+
+Here's a list of the interfaces that should be tracked (according to OSGi CMPN R7 Whiteboard specification):
+
+* `org.osgi.service.http.context.ServletContextHelper` for the _context_ tracking
+* `javax.servlet.Servlet` for servlet tracking (and error page tracking)
+* `javax.servlet.Filter` and specialized `org.osgi.service.http.whiteboard.Preprocessor` for filter and preprocessor tracking
+* any service with `osgi.http.whiteboard.resource.pattern` service property for resource tracking
+* `javax.servlet.ServletContextListener`, `javax.servlet.ServletContextAttributeListener`, `javax.servlet.ServletRequestListener`, `javax.servlet.ServletRequestAttributeListener`, `javax.servlet.HttpSessionListener`, `javax.servlet.HttpSessionAttributeListener`, `javax.servlet.HttpSessionIdListener` for listener tracking
+
+Pax Web tracks much more interfaces. These interfaces are defined in `org.ops4j.pax.web.service.whiteboard` package and the main goal is to allow publishing services, where all the information is contained in the objects themselves instead of service properties (as in Whiteboard Service specification).
+
+These Pax Web specific interfaces can be split into two categories:
+
+* _contexts_: interfaces derived from `org.ops4j.pax.web.service.whiteboard.ContextMapping` to register `org.osgi.service.http.HttpContext` and `org.osgi.service.http.context.ServletContextHelper` with associated information (like context path)
+* _web elements_: interfaces derived from `org.ops4j.pax.web.service.whiteboard.ContextRelated` to register elements like servlets, filters, listeners, where each of these elements refer to some _context_ (that's wht they're _related_).
+
+In addition to servlets, filters (and preprocessors) and listeners, Pax Web allows registration of:
+
+* `org.ops4j.pax.web.service.whiteboard.ErrorPageMapping` - error pages as separate service, not only as servlet registration properties
+* `org.ops4j.pax.web.service.whiteboard.JspMapping` - for JSP mappings
+* `org.ops4j.pax.web.service.whiteboard.WebSocketMapping` - for websockets
+* `org.ops4j.pax.web.service.whiteboard.WelcomeFileMapping` - for welcome files
+
+Pax Web Whiteboard extender tracks the above mentioned services and turns them (as in the contract of `org.osgi.util.tracker.ServiceTrackerCustomizer.addingService()`, where reference of service with type `S` is transformed into (possibly the same) service of type `T`) into other (internal) interfaces.
+
+Here's a list of non Pax Web specific interfaces that are tracked:
+
+|===
+|Tracked interface |Internal interface from package `org.ops4j.pax.web.extender.whiteboard.internal.element`
+
+|`org.osgi.service.http.HttpContext`
+|`org.ops4j.pax.web.extender.whiteboard.internal.element.HttpContextElement`
+
+|`org.osgi.service.http.context.ServletContextHelper`
+|`org.ops4j.pax.web.extender.whiteboard.internal.element.ServletContextHelperElement`
+
+|`javax.servlet.Servlet`
+|`org.ops4j.pax.web.extender.whiteboard.internal.element.ServletWebElement`
+
+|`java.lang.Object`
+|`org.ops4j.pax.web.extender.whiteboard.internal.element.ResourceWebElement`
+
+|`javax.servlet.Filter`
+|`org.ops4j.pax.web.extender.whiteboard.internal.element.FilterWebElement`
+
+|`java.util.EventListener`
+|`org.ops4j.pax.web.extender.whiteboard.internal.element.ListenerWebElement`
+
+|`java.lang.Object`
+|`org.ops4j.pax.web.extender.whiteboard.internal.element.WebSocketElement`
+|===
+
+And additional tracked interfaces from `org.ops4j.pax.web.service.whiteboard` package:
+
+|===
+|Tracked interface |Internal interface from package `org.ops4j.pax.web.extender.whiteboard.internal.element`
+
+|`org.ops4j.pax.web.service.whiteboard.HttpContextMapping`
+|`org.ops4j.pax.web.extender.whiteboard.internal.element.HttpContextElement`
+
+|`org.ops4j.pax.web.service.whiteboard.ServletContextHelperMapping`
+|`org.ops4j.pax.web.extender.whiteboard.internal.element.ServletContextHelperElement`
+
+|`org.ops4j.pax.web.service.whiteboard.ErrorPageMapping`
+|`org.ops4j.pax.web.extender.whiteboard.internal.element.ErrorPageWebElement`
+
+|`org.ops4j.pax.web.service.whiteboard.FilterMapping`
+|`org.ops4j.pax.web.extender.whiteboard.internal.element.FilterMappingWebElement`
+
+|`org.ops4j.pax.web.service.whiteboard.JspMapping`
+|`org.ops4j.pax.web.extender.whiteboard.internal.element.JspWebElement`
+
+|`org.ops4j.pax.web.service.whiteboard.ListenerMapping`
+|`org.ops4j.pax.web.extender.whiteboard.internal.element.ListenerMappingWebElement`
+
+|`org.ops4j.pax.web.service.whiteboard.ResourceMapping`
+|`org.ops4j.pax.web.extender.whiteboard.internal.element.ResourceMappingWebElement`
+
+|`org.ops4j.pax.web.service.whiteboard.ServletMapping`
+|`org.ops4j.pax.web.extender.whiteboard.internal.element.ServletMappingWebElement`
+
+|`org.ops4j.pax.web.service.whiteboard.WebSocketMapping`
+|`??`
+
+|`org.ops4j.pax.web.service.whiteboard.WelcomeFileMapping`
+|`org.ops4j.pax.web.extender.whiteboard.internal.element.WelcomeFileWebElement`
+|===
+
+The above is the current state of Pax Web before version 8.
+
+There's a bit of ambiguity here. For example `org.osgi.service.http.HttpContext` and `org.ops4j.pax.web.service.whiteboard.HttpContextMapping` are both represented internally by `org.ops4j.pax.web.extender.whiteboard.internal.element.HttpContextElement`, while `javax.servlet.Servlet` is represented by `org.ops4j.pax.web.extender.whiteboard.internal.element.ServletWebElement` and `org.ops4j.pax.web.service.whiteboard.ServletMapping` is represented by `org.ops4j.pax.web.extender.whiteboard.internal.element.legacy.ServletMappingWebElement`.
+
+In Pax Web 8 I'll try to unify this a bit.
+
+== Two stages of _tracking_
+
+Pax Web Whiteboard extender does its job in two stages:
+
+1. tracking and translating relevant OSGi services (e.g., translating `javax.servlet.Servlet` into `org.ops4j.pax.web.extender.whiteboard.internal.element.ServletWebElement`)
+2. using the internal representation of registered Whiteboard element to `register()` or `unregister()` itself in current `org.ops4j.pax.web.service.WebContainer`.
+
+== Pax Web 8 cleanup
+
+The goal is to not duplicate anything. We need only:
+
+* the interfaces to track (the ones from `org.ops4j.pax.web.service.whiteboard` package)
+* the internal representation of tracked interfaces (the classes returned from `org.osgi.util.tracker.ServiceTrackerCustomizer.addingService()`) - these should be treated as _internal_.
+* optionally, default (POJO) implementations of the interfaces from `org.ops4j.pax.web.service.whiteboard` package
+
+Currently (before Pax Web 8) we have a little duplication:
+
+* `org.ops4j.pax.web.service.spi.whiteboard` package contains interfaces implemented only by classes from `org.ops4j.pax.web.extender.whiteboard.internal.element` package
+* these classes from `org.ops4j.pax.web.extender.whiteboard.internal.element` package almost duplicate the _model_ classes from `org.ops4j.pax.web.service.spi.model.elements` package, but all they do (those classes from `org.ops4j.pax.web.extender.whiteboard.internal.element.FilterMappingWebElement`) package is they:
+** hold a reference to a registered service with interface from `org.ops4j.pax.web.service.whiteboard` package
+** register/unregister themselves in `org.ops4j.pax.web.service.WebContainer`.
+
+Internally, after implementing the batch aproach to registration, implementation of `org.ops4j.pax.web.service.WebContainer` accepts _model_ classes from `org.ops4j.pax.web.service.spi.model.elements` package anyway.
+
+So the goal for now (2020-04-21) is to let pax-web-extender-whiteboard to register _model_ classes into `WebContainer` directly (maybe through internal interface, a.k.a. a _view_).
+This in turn is a reason to have pax-web-extender-whiteboard trackers accept all currently handled interfaces to be registered as OSGi services (like `javax.servlet.Servlet` or `org.ops4j.pax.web.service.whiteboard.FilterMapping`) and translate (track) them (see `org.osgi.util.tracker.ServiceTrackerCustomizer.addingService()`) into classes from `org.ops4j.pax.web.service.spi.model.elements` package instead of the ones from `org.ops4j.pax.web.extender.whiteboard.internal.element` package.
+
+== Changes after Pax Web 7
+
+In Pax Web 6 and 7, the central concept of _Whiteboard_ was a map of `BundleWhiteboardApplication` keyed by _context id_ and a Bundle. Generally it meant that each bundle can register OSGi services into the Whiteboard and those services were _web elements_ that constituted a _web application_.
+The problem is that the _web application_ targeted by Whiteboard services in Pax Web is wrongly identified by the bundle from which given service was registered. In OSGi CMPN R6+ Whiteboard Service specification, servlets, filters, etc. are registered *not* into _web application_ but _in association with_ `ServletContextHelper` which roughly *is* a _web application_, with few important exceptions:
+
+* Services from many different bundles may be registered in association with the same `ServletContextHelper` (which itself could be a `ServiceFactory`)
+* Single service (e.g., a `javax.servlet.Servlet`) can be registered in association with more than one `ServletContextHelper` and while any `ServletContextHelper` may represent separate _physical servlet context_, single servlet may effectively be part of many _web applications_ (servlet contexts).
+
+The above reasoning lead to deep refactoring of Pax Web Extender Whiteboard bundle.
+
+=== `org.ops4j.pax.web.service.views.PaxWebContainerView`
+
+Before Pax Web 8, pax-web-extender-war was tracking some OSGi services, converted them (_customized_ them) in trackers to objects derived from `org.ops4j.pax.web.extender.whiteboard.internal.element.WebElement`, those elements had `register()` method that were using passed `WebContainer` instance and were calling _registration_ methods like `org.ops4j.pax.web.service.WebContainer#registerServlet()` - methods that accepted many separate arguments.
+
+In Pax Web 8 I've added special `org.ops4j.pax.web.service.WebContainer.adapt()` method that can be used to get a _view_ of the _web contaner_.
+Such view may be _internal_ to Pax Web and can allow some more generic or low level access. In Pax Web 8 there's special view implemented by pax-web-runtime, with interface defined in pax-web-spi to allow _direct_ registraion of _models_.
+
+Remember - pax-web-extender-whiteboard provides a set of _trackers_ with _customizers_ that change _incoming_ interfaces like `javax.servlet.Servlet` or Pax Web specific `org.ops4j.pax.web.service.whiteboard.ServletMapping` into objects of classes derived from `org.ops4j.pax.web.service.spi.model.elements.ElementModel` (in Pax Web 7 and earlier, the _customized_ objects had classes derived from `org.ops4j.pax.web.extender.whiteboard.internal.element.WebElement`).
+
+New internal _view_ of `WebContainer` allows to register the models directly.
+
+== Resources
+
+HttpService's `org.osgi.service.http.HttpService.registerResources()` and Whiteboard's registration of _resource_ are implicitly backed by servlets, because effectively, all requests in Java web containers are served by servlets.
+
+Currently Pax Web has these servlets:
+
+* `org.ops4j.pax.web.service.jetty.internal.ResourceServlet`
+* `org.ops4j.pax.web.service.tomcat.internal.TomcatResourceServlet`
+* `org.ops4j.pax.web.service.undertow.internal.ResourceServlet` (removed/refactored in Pax Web 8)
+
+Servlet containers themselves also have "default"/"resource" servlets to serve static resources and are usually by default mapped to "/" URI:
+
+* `org.eclipse.jetty.servlet.DefaultServlet`
+* `org.apache.catalina.servlets.DefaultServlet`
+* `io.undertow.servlet.handlers.DefaultServlet`
+
+ALl these servlets do several things like handling _index_ for directory access (or not), preventing access to `/WEB-INF/`, etc. For actual resource serving, another interface is used:
+
+* `org.eclipse.jetty.server.ResourceService.doGet()` → `org.eclipse.jetty.http.HttpContent.ContentFactory.getContent()` → `org.eclipse.jetty.util.resource.ResourceFactory.getResource()` → `org.eclipse.jetty.servlet.DefaultServlet.getResource()`
+** if `org.eclipse.jetty.servlet.DefaultServlet._resourceBase` is not `null`: org.eclipse.jetty.util.resource.Resource.addPath()`
+** `org.eclipse.jetty.server.handler.ContextHandler.getResource()` → `org.eclipse.jetty.util.resource.Resource.addPath()`
+** `javax.servlet.ServletContext.getResource()`
+* `org.apache.catalina.WebResourceRoot.getResource()` → `org.apache.catalina.WebResourceSet.getResource()`
+* `io.undertow.server.handlers.resource.ResourceSupplier.getResource()` → `io.undertow.server.handlers.resource.ResourceManager.getResource()`
+
+All these resource suppliers/factories/roots handle production-grade caching:
+
+* `org.eclipse.jetty.server.CachedContentFactory`
+* `org.apache.catalina.webresources.Cache`
+* `io.undertow.server.handlers.resource.CachingResourceManager`
+
+Pax Web (pre 8) handles resource like this:
+
+* Jetty: call `org.osgi.service.http.HttpContext.getResource()` and if not available, handle _welcome files_.
+* Tomcat: call `org.osgi.service.http.HttpContext.getResource()` and if not available, handle _welcome files_.
+* Undertow: `org.ops4j.pax.web.service.undertow.internal.ResourceServlet` is also an `io.undertow.server.handlers.resource.ResourceManager`, which calls `org.osgi.service.http.HttpContext.getResource()` and as fallback, handle _welcome files_.
+
+_Welcome files_ are strictly related to _resource servlet_ and should be used when no resource is found using normal (`HttpContext` / `ServletContextHelper`) way. Remember - Whiteboard and HttpService specifications don't mention _welcome files_ at all.
+
+* `org.eclipse.jetty.server.handler.ContextHandler.setWelcomeFiles()`
+* `org.apache.catalina.Context.addWelcomeFile()`
+* `org.ops4j.pax.web.service.undertow.internal.Context.welcomeFiles` (used then by `org.ops4j.pax.web.service.undertow.internal.Context.getResource()` which is implementation of `io.undertow.server.handlers.resource.ResourceManager.getResource()`)
+
+=== Resource paths
+
+I checked that all servers have own methods for path _normalization_ to prevent accessing paths like `../../../../../../../etc/passwd`. Because we want unified behavior, we'll use `org.apache.commons.io.FilenameUtils.normalize()` function instead.
+
+The main requirement for _default servlets_ configured with some _resource base_ is that no path can go above the configured _base_ (which should be treated as `chroot`).
+
+There's a little difference between runtimes. In Jetty and Tomcat, normalization of nasty URLs like `../../../../../etc/passwd` leads to HTTP 400 Bad Request, while in Undertow, simply we can't escape the `chroot` and end up with `/etc/passwd` path info.
+
+=== Welcome files
+
+First - there's nothing about _welcome files_ in both Http Service and Whiteboard Service specifications.
+
+Then, chapter 10.10 "Welcome Files" of Servlet specification says quite clearly:
+
+    The purpose of this mechanism is to allow the deployer to specify an ordered list of
+    partial URIs for the container to use for appending to URIs when there is a request
+    for a URI that corresponds to a directory entry in the WAR not mapped to a Web
+    component.
+
+So if there *is* a mapping of the _directory_ URI into a web component (like a servlet), then Welcome Files mechanism should not be used.
+
+Also, Servlet specification says:
+
+    If no match is found, the Web server MUST again append each
+    welcome file in the order specified in the deployment descriptor to the partial
+    request and check if a servlet is mapped to that request URI.
+
+Which means, that after getting a _directory request_, checking that it's not mapped to any web component and after appending a _welcome file_, the container again has to do the mapping, because the resulting URL may now be mapped to some servlet (that's what usually happens with `index.jsp` _welcome file_). In Tomcat, it's called _Rule 4a -- Welcome resources processing for exact macth_, _Rule 4b -- Welcome resources processing for prefix match_ and _Rule 4c -- Welcome resources processing for physical folder_.
+
+Chapter 12.1 "Use of URL Paths" says that "default" servlet is called when nothing can be mapped for incoming request.
+
+There's a little (?) difference in how _welcome files_ are handled by Jetty, Tomcat and Undertow. Tomcat and Undertow handles the _welcome files_ immediately in mapping stage (`org.apache.catalina.mapper.Mapper.internalMapWrapper` and `io.undertow.servlet.handlers.ServletPathMatches.getServletHandlerByPath` respectively), while in Jetty, this is done only after request is being processed by `org.eclipse.jetty.servlet.DefaultServlet` (seems like regardless of the way it's mapped - to `/` or different URI).
+
+In OSGi CMPN web specifications (Http and Whiteboard) and in practice - only in Pax Web, the problem is that there may be many "default" (or rather "resource") servlets that should be able to process _directory requests_. Each such servlet should have access to welcome files, but also (according to Servlet spec) should check if the concatenated path (URI + welcome file) matches to another web component.
+
+==== Mapping details
+
+.Tomcat
+
+In Tomcat, the incoming request is handled like this (`org.apache.catalina.mapper.Mapper.internalMapWrapper`):
+
+* exact wrappers are checked (i.e., those that don't start with `*.`, end with `/*` or are `/`)
+* wildcard wrappers are checked (those ending with `/*`)
+* now, depending on `org.apache.catalina.Context.getMapperContextRootRedirectEnabled()` if the path is empty, we may immediately get a redirect from context root to context root with trailing `/`
+* extension wrappers are checked (those starting with `*.`)
+* welcome files are checked. For each welcome file, original URI which has to end with `/` is appended with a welcome file value
+** again exact wrappers are checked (rule 4a)
+** again wildcard wrappers are checked (rule 4b)
+** physical resource is located and *only* if it exists (rule 4c):
+*** extension wrapper is checked and if not found
+*** the handling wrapper is set to the servlet mapped to `/` (the _default_ servlet)
+
+.Undertow
+
+In Undertow, the incoming request is handled like this (`io.undertow.servlet.handlers.ServletPathMatches.getServletHandlerByPath`):
+
+* exact path matches are checked
+* prefix path matches are checked
+* trimmed prefix patch matches are checked starting from original one, trimming last character at a time. This way Undertow handles extension mappings, changing `index.do` URI to `/index.do` first and eventually to `/index` prefix match
+* `io.undertow.servlet.handlers.ServletPathMatches.findWelcomeFile` is called
+* `io.undertow.servlet.handlers.ServletPathMatchesData.getServletHandlerByPath()` is called again with original URI appended with each of the welcome files at a time
+
+If `io.undertow.servlet.handlers.ServletPathMatches.setupServletChains()` detects no _default servlet_, it adds its own without any mapping, but associated with `/*` path.
+
+.Jetty
+
+In Jetty, `org.eclipse.jetty.servlet.ServletHandler.getMappedServlet()` doesn't check the welcome files at all.
+Welcome files are handled in `org.eclipse.jetty.server.ResourceService.doGet()` after directory resource is returned. Which may (?) mean that if no default servlet is mapped, no welcome files are checked at all... Jetty uses `javax.servlet.ServletContext.getRequestDispatcher()` after finding proper welcome file.
+
+.Observations
+
+Undertow doesn't need default servlet at all to handle all welcome files (those that eventually map to other servlet and those that map to resources), because default servlet is added anyway if none found.
+Tomcat doesn't need default servlet to handle welcome files that eventually map to servlets. To serve resources, explicit default servlet is needed.
+Jetty doesn't handle welcome files at all without default servlet. Even with `org.eclipse.jetty.servlet.ServletHandler.setEnsureDefaultServlet()`, because this flag adds `org.eclipse.jetty.servlet.ServletHandler.Default404Servlet`, not a real default servlet.
+
+==== Unification
+
+Let's collect the requirements, so all three containers behave similarly.
+
+First, we have these assumptions:
+
+* there's a need to have default 404 servlet, because initially, there has to be no default/resource servlet mapped to any URI (even `/`) and we want filter only pipelines to work.
+* without user calling `httpService.registerResources()` we can't register any resource servlets, so no resources are served from the bundle - both in Http Service and Whiteboard Service cases. None of these specifications say anything about "default servlet" or "default resource handling" - also there's nothing about _welcome files_.
+* when registering resources, we use "name" parameter to `httpService.registerResources()` or `osgi.http.whiteboard.resource.prefix` Whiteboard property, which is prefix for the incoming path info part of request URI. Pax Web allows to use external directory (bypassing any `HttpContext`/`ServletContextHelper`) if the `name`/`prefix` is absolute path to accessible directory. In this special mode, accessing a _directory_ when no welcome file is available results in 403 error instead of 404 one, because it's not that easy to handle directories obtained using `org.osgi.framework.Bundle.getResource()` (as in default implementation of `HttpContext`/`ServletContextHelper`).
+* when the above name/prefix is relative (and together with incoming path info is passed to `HttpContext`/`ServletContextHelper`), but still result in a `file:` URL, directory entries without welcome files still result in 403 error - but consistently across containers
+* Even if Tomcat and Undertow handle welcome files before dispatching to a servlet, while Jetty does it after dispatching to default servlet, Pax Web explicitly configures context-level welcome files as empty array. Welcome files are handled by individual "resource servlets", because there may be more of them - not necessarily mapped to `/` URI.
+* with pax-web-extender-war we should (or leave it as configuration option) configure `/` servlet if none is specified. Such servlet will be used to serve resources from the WAB bundle itself. The name/prefix should be empty (to serve resources from the root of the WAB).
+* Each resource servlet used should handle welcome files by first checking of real servlet is available after adding a welcome file to incoming _directory URI_ - even if by default only Jetty's default servlet does it.
+
+== Error Pages
+
+_Error pages_ are (from `web.xml` point of view) mappings from error codes or FQCN of exceptions to locations:
+
+* `org.eclipse.jetty.servlet.ErrorPageErrorHandler._errorPages`
+* `org.apache.catalina.util.ErrorPageSupport.exceptionPages` and `org.apache.catalina.util.ErrorPageSupport.statusPages`
+* `io.undertow.servlet.api.DeploymentInfo.errorPages` and `io.undertow.servlet.core.DeploymentImpl.errorPages` (no specific Undertow `web.xml` parser. It's parsed in Wildfly by `org.jboss.metadata.parser.servlet.WebCommonMetaDataParser#parse()`)
+
+== DTOs
+
+Whiteboard DTOs (chapter `140.9 The Http Service Runtime Service`) is the last task I planned before Pax Web 8.0.0.GA.
+Whiteboard specification assumes huge control over everything registered to the Whiteboard, but Pax Web moves the emphasis to native (Jetty/Tomcat/Undertow) mechanisms of the servlet container, so not everything is as easy as it'd be when implemented using single `DispatcherServlet`.
+
+=== Where Pax Web 8 implements `org.osgi.service.http.runtime.HttpServiceRuntime`?
+
+I decided to register this service not from pax-web-extender-whiteboard bundle, which is responsible for tracking Whiteboard services. In Pax Web 8, this service is published from pax-web-runtime and the _source_ of DTO information is `org.ops4j.pax.web.service.spi.model.ServerModel`, which keeps all the web elements - from Whiteboard, HttpService/WebContainer and from the WABs.
+
+=== DTO for successful services
+
+This part is easier - because every validated Whiteboard service is registered into `ServerModel`, we can easily associated the DTO information.
+
+=== DTO for failed services
+
+This is a bit trickier, at least for the Whiteboard part, because failed registrations are _not_ passed to pax-web-runtime. But I'll think about something.
+
+=== DTO failure reasons
+
+Checking the specification, these are the failure codes:
+
+* `FAILURE_REASON_UNKNOWN` = 0 Failure reason is unknown.
+* `FAILURE_REASON_NO_SERVLET_CONTEXT_MATCHING` = 1 No matching ServletContextHelper.
+* `FAILURE_REASON_SERVLET_CONTEXT_FAILURE` = 2 Matching ServletContextHelper, but the context is not used due to a problem with the context.
+* `FAILURE_REASON_SHADOWED_BY_OTHER_SERVICE` = 3 Service is shadowed by another service.  For example, a service with the same service properties but a higher service ranking.
+* `FAILURE_REASON_EXCEPTION_ON_INIT` = 4 An exception occurred during initializing of the service.  This reason can only happen for servlets and servlet filters.
+* `FAILURE_REASON_SERVICE_NOT_GETTABLE` = 5 The service is registered in the service registry but getting the service fails as it returns null.
+* `FAILURE_REASON_VALIDATION_FAILED` = 6 The service is registered in the service registry but the service properties are invalid.
+* `FAILURE_REASON_SERVICE_IN_USE` = 7 The service is not registered as a prototype scoped service and is already in use with a servlet context and therefore can't be used with another servlet context.
+* `FAILURE_REASON_SERVLET_WRITE_TO_LOCATION_DENIED` = 8 The servlet is not registered as it is configured to have multipart enabled, but the bundle containing the servlet has no write permission to the provided location for the uploaded files.  Since: 1.1
+* `FAILURE_REASON_WHITEBOARD_WRITE_TO_DEFAULT_DENIED` = 9 The servlet is not registered as it is configured to have multipart enabled, but the whiteboard implementation has no write permission to the default location for the uploaded files.  Since: 1.1
+* `FAILURE_REASON_SERVLET_READ_FROM_DEFAULT_DENIED` = 10 The servlet is not registered as it is configured to have multipart enabled, but the bundle containing the servlet has no read permission to the default location for the uploaded files.  Since: 1.1
+* `FAILURE_REASON_WHITEBOARD_WRITE_TO_LOCATION_DENIED` = 11 The servlet is not registered as it is configured to have multipart enabled, but the whiteboard implementation has no write permission to the provided location for the uploaded files.  Since: 1.1
+
+Here are the failure codes associated with particular web element FailedDTOs:
+
+* `FailedErrorPageDTO`:
+** DTOConstants.FAILURE_REASON_UNKNOWN
+** DTOConstants.FAILURE_REASON_EXCEPTION_ON_INIT
+** DTOConstants.FAILURE_REASON_NO_SERVLET_CONTEXT_MATCHING
+** DTOConstants.FAILURE_REASON_SERVICE_NOT_GETTABLE
+** DTOConstants.FAILURE_REASON_SERVLET_CONTEXT_FAILURE
+** DTOConstants.FAILURE_REASON_SHADOWED_BY_OTHER_SERVICE
+* `FailedFilterDTO`:
+** DTOConstants.FAILURE_REASON_UNKNOWN
+** DTOConstants.FAILURE_REASON_EXCEPTION_ON_INIT
+** DTOConstants.FAILURE_REASON_NO_SERVLET_CONTEXT_MATCHING
+** DTOConstants.FAILURE_REASON_SERVICE_NOT_GETTABLE
+** DTOConstants.FAILURE_REASON_SERVLET_CONTEXT_FAILURE
+** DTOConstants.FAILURE_REASON_SHADOWED_BY_OTHER_SERVICE
+* `FailedListenerDTO`:
+** DTOConstants.FAILURE_REASON_UNKNOWN
+** DTOConstants.FAILURE_REASON_EXCEPTION_ON_INIT
+** DTOConstants.FAILURE_REASON_NO_SERVLET_CONTEXT_MATCHING
+** DTOConstants.FAILURE_REASON_SERVICE_NOT_GETTABLE
+** DTOConstants.FAILURE_REASON_SERVLET_CONTEXT_FAILURE
+** DTOConstants.FAILURE_REASON_SHADOWED_BY_OTHER_SERVICE
+* `FailedPreprocessorDTO`:
+** DTOConstants.FAILURE_REASON_UNKNOWN
+** DTOConstants.FAILURE_REASON_EXCEPTION_ON_INIT
+** DTOConstants.FAILURE_REASON_SERVICE_NOT_GETTABLE
+* `FailedResourceDTO`:
+** DTOConstants.FAILURE_REASON_UNKNOWN
+** DTOConstants.FAILURE_REASON_EXCEPTION_ON_INIT
+** DTOConstants.FAILURE_REASON_NO_SERVLET_CONTEXT_MATCHING
+** DTOConstants.FAILURE_REASON_SERVICE_NOT_GETTABLE
+** DTOConstants.FAILURE_REASON_SERVLET_CONTEXT_FAILURE
+** DTOConstants.FAILURE_REASON_SHADOWED_BY_OTHER_SERVICE
+* `FailedServletContextDTO`:
+** DTOConstants.FAILURE_REASON_UNKNOWN
+** DTOConstants.FAILURE_REASON_EXCEPTION_ON_INIT
+** DTOConstants.FAILURE_REASON_NO_SERVLET_CONTEXT_MATCHING
+** DTOConstants.FAILURE_REASON_SERVICE_NOT_GETTABLE
+** DTOConstants.FAILURE_REASON_SERVLET_CONTEXT_FAILURE
+** DTOConstants.FAILURE_REASON_SHADOWED_BY_OTHER_SERVICE
+* `FailedServletDTO`:
+** DTOConstants.FAILURE_REASON_UNKNOWN
+** DTOConstants.FAILURE_REASON_EXCEPTION_ON_INIT
+** DTOConstants.FAILURE_REASON_NO_SERVLET_CONTEXT_MATCHING
+** DTOConstants.FAILURE_REASON_SERVICE_NOT_GETTABLE
+** DTOConstants.FAILURE_REASON_SERVLET_CONTEXT_FAILURE
+** DTOConstants.FAILURE_REASON_SHADOWED_BY_OTHER_SERVICE
+** DTOConstants.FAILURE_REASON_SERVLET_WRITE_TO_LOCATION_DENIED
+** DTOConstants.FAILURE_REASON_WHITEBOARD_WRITE_TO_DEFAULT_DENIED
+** DTOConstants.FAILURE_REASON_SERVLET_READ_FROM_DEFAULT_DENIED
+
+And here's the revers mapping (FailedDTOs associated with failure codes):
+
+* (0) `FAILURE_REASON_UNKNOWN`:
+** `FailedErrorPageDTO`
+** `FailedFilterDTO`
+** `FailedListenerDTO`
+** `FailedPreprocessorDTO`
+** `FailedResourceDTO`
+** `FailedServletContextDTO`
+** `FailedServletDTO`
+* (1) `FAILURE_REASON_NO_SERVLET_CONTEXT_MATCHING`:
+** `FailedErrorPageDTO`
+** `FailedFilterDTO`
+** `FailedListenerDTO`
+** `FailedResourceDTO`
+** `FailedServletContextDTO` (why?)
+** `FailedServletDTO`
+* (2) `FAILURE_REASON_SERVLET_CONTEXT_FAILURE`:
+** `FailedErrorPageDTO`
+** `FailedFilterDTO`
+** `FailedListenerDTO`
+** `FailedResourceDTO`
+** `FailedServletContextDTO`
+** `FailedServletDTO`
+* (3) `FAILURE_REASON_SHADOWED_BY_OTHER_SERVICE`:
+** `FailedErrorPageDTO`
+** `FailedFilterDTO`
+** `FailedListenerDTO` (why?)
+** `FailedResourceDTO`
+** `FailedServletContextDTO`
+** `FailedServletDTO`
+* (4) `FAILURE_REASON_EXCEPTION_ON_INIT`:
+** `FailedErrorPageDTO` (why?)
+** `FailedFilterDTO`
+** `FailedListenerDTO` (why? especially for fine-graned listeners, like request attribute listeners)
+** `FailedPreprocessorDTO`
+** `FailedResourceDTO` (why? even if I know there's DefaultServlet underneath)
+** `FailedServletContextDTO` (why? ServletContextHelpers are not initialized)
+** `FailedServletDTO`
+* (5) `FAILURE_REASON_SERVICE_NOT_GETTABLE`:
+** `FailedErrorPageDTO`
+** `FailedFilterDTO`
+** `FailedListenerDTO`
+** `FailedPreprocessorDTO`
+** `FailedResourceDTO`
+** `FailedServletContextDTO`
+** `FailedServletDTO`
+* (6) `FAILURE_REASON_VALIDATION_FAILED`:
+** no particular failure DTO mentioned in the specification
+* (7) `FAILURE_REASON_SERVICE_IN_USE`:
+** no particular failure DTO mentioned in the specification
+* (8) `FAILURE_REASON_SERVLET_WRITE_TO_LOCATION_DENIED`:
+** `FailedServletDTO`
+* (9) `FAILURE_REASON_WHITEBOARD_WRITE_TO_DEFAULT_DENIED`:
+** `FailedServletDTO`
+* (10) `FAILURE_REASON_SERVLET_READ_FROM_DEFAULT_DENIED`:
+** `FailedServletDTO`
+* (11) `FAILURE_REASON_WHITEBOARD_WRITE_TO_LOCATION_DENIED`:
+** no particular failure DTO mentioned in the specification
