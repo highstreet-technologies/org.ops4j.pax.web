@@ -27,7 +27,7 @@
 		<relativePath>../pom.xml</relativePath>
 	</parent>
 
-	<groupId>org.ops4j.pax.web</groupId>
+	<groupId>com.highstreet-technologies.org.ops4j.pax.web</groupId>
 	<artifactId>pax-web-jetty</artifactId>
 	<packaging>bundle</packaging>
 
